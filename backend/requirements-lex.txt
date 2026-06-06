@@ -1,0 +1,13 @@
+# Laws RAG (lex) engine. Heavy: pulls torch via sentence-transformers and the
+# bge-m3 + reranker models (~2GB, downloaded on first use). Kept separate from the
+# core backend deps so the API can run without them (the laws retriever degrades to
+# empty when these are absent).
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
+chromadb>=0.5
+sentence-transformers>=3.0,<4.0
+rank-bm25>=0.2.2
+simplemma>=1.1
+tqdm>=4.66
+numpy>=1.26

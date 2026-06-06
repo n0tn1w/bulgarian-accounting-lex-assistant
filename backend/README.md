@@ -1,9 +1,9 @@
 # Backend - Accounting AI Assistant
 
-Python/FastAPI backend. This first slice implements the rebuilt core features
-(ingestion, comparison/dedup, validation) as a typed tool layer behind a stateless
-HTTP API. Auth, multi-tenancy, persistence, RAG, and LLM orchestration are layered on
-in later phases.
+Python/FastAPI backend: invoice ingestion (XXE-safe XML, OCR, BG field extraction),
+comparison/dedup and a deterministic validation engine, JWT auth with multi-tenant
+Postgres/pgvector storage, and a LiteLLM `/chat` orchestrator over two RAGs - the
+tenant's invoices and Bulgarian legislation (the lex engine under `lex/`).
 
 ## Layout
 
@@ -11,13 +11,14 @@ in later phases.
 app/
   core/      config (pydantic-settings)
   domain/    Pydantic domain models (Invoice, LineItem, Party, TaxLine, ...)
+  rag/       invoices + laws retrievers and the LLM client behind /chat
   tools/
     nlp/       identifier tokenizer + normalizer (Cyrillic-aware)
     ingest/    XXE-safe XML parser, OCR (Tesseract bul+eng), BG invoice extractor
     compare/   TF-IDF (word+char) + cosine + linear fusion -> compare & find_duplicates
     validate/  deterministic rule engine (arithmetic, VAT, format, completeness)
   api/       FastAPI routers + request/response schemas
-tests/       pytest suite (no OCR system deps needed)
+lex/         laws RAG engine (scrape lex.bg -> hybrid retrieve + cross-encoder rerank)
 ```
 
 ## Setup
@@ -29,10 +30,12 @@ docker compose -f ../infra/docker-compose.yml up -d
 # 2) Backend
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt        # core + test deps
+pip install -r requirements-dev.txt        # core + lint deps
 # optional OCR (needs system Tesseract + Poppler + `bul` language pack):
 #   brew install tesseract tesseract-lang poppler   # macOS
 pip install -r requirements-ocr.txt
+# laws RAG (lex): heavy deps + build the index (scrapes lex.bg, downloads ~2GB models)
+pip install -r requirements-lex.txt && python lex/run_ingest.py
 ```
 
 ## Run
@@ -40,13 +43,6 @@ pip install -r requirements-ocr.txt
 ```bash
 uvicorn app.main:app --reload --port 8000
 # docs: http://localhost:8000/docs
-```
-
-## Test
-
-```bash
-pytest                 # whole suite
-pytest tests/test_validate.py::test_arithmetic_mismatch_fails   # single test
 ```
 
 ## API (current)
@@ -60,6 +56,13 @@ pytest tests/test_validate.py::test_arithmetic_mismatch_fails   # single test
 | POST | `/compare` | pairwise similarity + evidence |
 | POST | `/compare/duplicates` | rank candidates, flag duplicates |
 | POST | `/validate` | run rule suite over an Invoice |
+| POST | `/rag/invoices/retrieve` | semantic search over the tenant's invoices |
+| POST | `/rag/laws/retrieve` | cited law passages from lex |
+| POST | `/chat` | merge both RAGs and answer via the LLM (cited) |
+
+The laws RAG (`/rag/laws/*` and the laws half of `/chat`) is the lex engine; it needs
+`requirements-lex.txt` installed and the index built (`python lex/run_ingest.py`).
+Without the index it returns nothing and `/chat` answers from invoices alone.
 
 ## Design rules from the architecture docs
 

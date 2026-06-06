@@ -63,6 +63,11 @@ services:
         condition: service_healthy
     networks:
       - ledgerly
+    volumes:
+      # Persist the lex laws index and downloaded models across restarts.
+      # Build the index once: docker compose run --rm backend python lex/run_ingest.py
+      - lex_index:/app/lex/storage
+      - hf_cache:/root/.cache/huggingface
     # Backend is not exposed to the host; nginx proxies /api/ to backend:8000.
 
   # Angular SPA + nginx reverse proxy (public entry point)
@@ -83,3 +88,5 @@ networks:
 
 volumes:
   ledgerly_pgdata:
+  lex_index:
+  hf_cache:
