@@ -1,0 +1,14 @@
+[project]
+name = "accounting-assistant-backend"
+version = "0.1.0"
+description = "Backend for the Accounting AI Assistant (ingestion, comparison, validation tools + API)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

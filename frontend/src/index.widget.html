@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ledgerly - Embeddable widget demo</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { margin: 0; font-family: 'Hanken Grotesk', sans-serif; background: #efeadf;
+           color: #18271f; display: grid; place-items: center; min-height: 100vh; padding: 24px; }
+    .host { max-width: 720px; }
+    h1 { font-family: 'Fraunces', serif; font-weight: 600; }
+    code { font-family: 'IBM Plex Mono', monospace; background: #fff; padding: 2px 6px;
+           border-radius: 6px; border: 1px solid #e0d8c7; }
+    .frame { margin-top: 24px; height: 560px; width: min(420px, 92vw); }
+  </style>
+</head>
+<body>
+  <!--
+    Demo page for the embeddable Web Component. After `npm run build:widget`
+    a host site loads the emitted JS/CSS and drops in the custom element:
+
+      <script src="ledgerly-widget/main.js" type="module"></script>
+      <ledgerly-assistant api-base="https://api.yourdomain.eu"></ledgerly-assistant>
+  -->
+  <div class="host">
+    <h1>Ledgerly - embeddable assistant</h1>
+    <p>Drop <code>&lt;ledgerly-assistant&gt;</code> into any page. It is a self-contained
+       Web Component (Angular Element) that talks to the Ledgerly API.</p>
+    <div class="frame">
+      <ledgerly-assistant api-base="http://localhost:8000"></ledgerly-assistant>
+    </div>
+  </div>
+</body>
+</html>

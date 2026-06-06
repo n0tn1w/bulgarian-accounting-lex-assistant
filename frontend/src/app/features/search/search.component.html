@@ -1,0 +1,35 @@
+<div class="search-view">
+  <div class="search-bar">
+    <app-icon name="search" [size]="18" />
+    <input type="text" [value]="store.searchQuery()" (input)="onInput($event)" (keydown)="onKey($event)"
+           placeholder="Search invoices semantically — supplier, amount, anything…" />
+    <button class="btn primary" (click)="run()" [disabled]="store.searching()">
+      {{ store.searching() ? 'Searching…' : 'Search' }}
+    </button>
+  </div>
+
+  @if (store.searching()) {
+    <div class="typing" style="justify-content:center; margin-top:40px"><i></i><i></i><i></i></div>
+  } @else if (store.searchQuery() && store.searchHits().length === 0) {
+    <div class="insp-empty" style="margin-top:48px">No matches for “{{ store.searchQuery() }}”.</div>
+  } @else if (!store.searchQuery()) {
+    <div class="empty" style="margin-top:6vh">
+      <div class="glyph"><app-icon name="search" [size]="32" [weight]="1.6" /></div>
+      <h2>Search your <em>ledger</em>.</h2>
+      <p>Semantic search over every invoice you’ve ingested (pgvector). Try a supplier
+         name, a company, or a description - ranked by relevance.</p>
+    </div>
+  } @else {
+    <div class="search-results">
+      @for (hit of store.searchHits(); track hit.invoice.id) {
+        <div class="search-hit">
+          <div class="hit-score">
+            <span class="mono">{{ pct(hit.score) }}%</span>
+            <span class="faint">match</span>
+          </div>
+          <app-card-view [card]="{ type: 'invoice', invoice: hit.invoice }" />
+        </div>
+      }
+    </div>
+  }
+</div>

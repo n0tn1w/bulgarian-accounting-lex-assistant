@@ -1,0 +1,7 @@
+# Optional OCR stack. Requires system Tesseract with the `bul` language pack
+# and Poppler (for pdf2image). Install separately:
+#   macOS:   brew install tesseract tesseract-lang poppler
+#   Debian:  apt-get install tesseract-ocr tesseract-ocr-bul poppler-utils
+pytesseract>=0.3.10
+pdf2image>=1.16.3
+pillow>=10.3

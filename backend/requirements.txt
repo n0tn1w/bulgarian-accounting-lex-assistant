@@ -1,0 +1,26 @@
+# Core backend (no OCR system deps required)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+python-multipart>=0.0.9
+
+# IR / comparison engine
+scikit-learn>=1.4
+numpy>=1.26
+scipy>=1.12
+
+# Safe XML parsing (XXE protection)
+defusedxml>=0.7.1
+
+# Persistence + multi-tenancy + vectors
+SQLAlchemy>=2.0
+psycopg[binary]>=3.1
+pgvector>=0.3
+
+# Auth
+bcrypt>=4.1
+PyJWT>=2.8
+
+# Provider-agnostic LLM access (Ollama / Claude / OpenAI / …)
+litellm>=1.40

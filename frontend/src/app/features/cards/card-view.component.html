@@ -1,0 +1,170 @@
+@switch (card.type) {
+
+  <!-- invoice -->
+  @case ('invoice') {
+    <div class="card doc">
+      <div class="card-head">
+        <app-icon name="doc" [size]="17" />
+        <span class="t">Invoice <small>{{ card.invoice.number || card.invoice.id }}</small></span>
+        <span class="right"><span class="chip"><span class="mono">{{ card.invoice.source }}</span></span></span>
+      </div>
+      <div class="card-body">
+        <div class="doc-grid">
+          <div class="kv">
+            <span class="k">Number</span>
+            <span class="v mono">{{ card.invoice.number || '—' }}</span>
+            @if (conf(card.invoice, 'number'); as c) { <app-meter [value]="c" /> }
+          </div>
+          <div class="kv">
+            <span class="k">Date</span>
+            <span class="v mono">{{ card.invoice.date || '—' }}</span>
+            @if (conf(card.invoice, 'date'); as c) { <app-meter [value]="c" /> }
+          </div>
+          <div class="kv">
+            <span class="k">Supplier</span>
+            <span class="v">{{ card.invoice.supplier.name || '—' }}</span>
+            @if (conf(card.invoice, 'supplier_name'); as c) { <app-meter [value]="c" /> }
+          </div>
+          <div class="kv">
+            <span class="k">Recipient</span>
+            <span class="v">{{ card.invoice.recipient.name || '—' }}</span>
+            @if (conf(card.invoice, 'recipient_name'); as c) { <app-meter [value]="c" /> }
+          </div>
+          <div class="kv">
+            <span class="k">Supplier VAT / EIK</span>
+            <span class="v mono">{{ card.invoice.supplier.vat_number || card.invoice.supplier.eik || '—' }}</span>
+          </div>
+          <div class="kv">
+            <span class="k">Recipient VAT</span>
+            <span class="v mono">{{ card.invoice.recipient.vat_number || '—' }}</span>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <div class="amt-row"><span class="lbl">Net</span>
+            <span class="num">{{ card.invoice.net_amount | money: card.invoice.currency }}</span></div>
+          <div class="amt-row"><span class="lbl">VAT</span>
+            <span class="num">{{ card.invoice.vat_amount | money: card.invoice.currency }}</span></div>
+          <div class="amt-row total"><span class="lbl">Total</span>
+            <span class="num">{{ card.invoice.total_amount | money: card.invoice.currency }}</span></div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- validation -->
+  @case ('validation') {
+    <div class="card">
+      <div class="card-head">
+        <app-icon [name]="card.isValid ? 'check' : 'alert'" [size]="17" />
+        <span class="t">Validation</span>
+        <span class="right">
+          <span class="badge" [class.ok]="card.isValid" [class.error]="!card.isValid">
+            {{ card.isValid ? 'Valid' : 'Issues found' }}
+          </span>
+        </span>
+      </div>
+      <div class="card-body">
+        @for (r of card.results; track r.rule_id) {
+          <div class="rule" [class]="ruleClass(r.passed, r.severity)">
+            <span class="mark"><app-icon [name]="r.passed ? 'check' : 'alert'" [size]="13" [weight]="2.4" /></span>
+            <div style="flex:1">
+              <div class="rmsg">{{ r.message }}</div>
+              <div class="rid">{{ r.rule_id }}</div>
+            </div>
+            <span class="badge" [class]="badgeClass(r.passed, r.severity)">{{ r.passed ? 'pass' : r.severity }}</span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- duplicates -->
+  @case ('duplicates') {
+    <div class="card">
+      <div class="card-head">
+        <app-icon name="scale" [size]="17" />
+        <span class="t">Duplicate scan <small>vs {{ card.queryId }}</small></span>
+      </div>
+      <div class="card-body">
+        @for (m of card.matches; track m.candidate_id) {
+          <div class="dup">
+            <span class="gauge">
+              <svg width="42" height="42" viewBox="0 0 42 42">
+                <circle cx="21" cy="21" r="17" fill="none" stroke="var(--paper-sunk)" stroke-width="4" />
+                <circle cx="21" cy="21" r="17" fill="none" [attr.stroke]="ringColor(m.score)" stroke-width="4"
+                  stroke-linecap="round" transform="rotate(-90 21 21)"
+                  [attr.stroke-dasharray]="106.8"
+                  [attr.stroke-dashoffset]="106.8 * (1 - m.score)" />
+              </svg>
+              <span class="pc" style="position:absolute">{{ pct(m.score) }}</span>
+            </span>
+            <div style="min-width:0">
+              <div class="who">{{ m.candidate_id }}</div>
+              <div class="ev">word {{ pct(m.evidence.word_similarity) }}% · char {{ pct(m.evidence.char_similarity) }}%</div>
+            </div>
+            <span class="tag badge" [class.error]="m.is_duplicate" [class.info]="!m.is_duplicate">
+              {{ m.is_duplicate ? 'duplicate' : 'distinct' }}
+            </span>
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- companies -->
+  @case ('companies') {
+    <div class="card">
+      <div class="card-head">
+        <app-icon name="ledger" [size]="17" />
+        <span class="t">Companies <small>{{ card.groups.length }} in working set</small></span>
+      </div>
+      <div class="card-body">
+        <div class="doclist">
+          @for (g of card.groups; track g.company.key) {
+            <div class="company-pill">
+              <span class="cmark">{{ (g.company.name || '?').charAt(0) }}</span>
+              <div style="min-width:0; flex:1">
+                <div class="cname">{{ g.company.name || 'Unknown company' }}</div>
+                <div class="cmeta mono">{{ g.company.vat || g.company.eik || g.company.key }}</div>
+              </div>
+              <span class="badge info">{{ g.company.invoice_count }} inv</span>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- sources (rag citations) -->
+  @case ('sources') {
+    <div class="card">
+      <div class="card-head">
+        <app-icon name="shield" [size]="16" />
+        <span class="t">Sources <small>{{ card.citations.length }} · {{ card.model }}</small></span>
+      </div>
+      <div class="card-body">
+        <div class="src-list">
+          @for (c of card.citations; track c.id) {
+            <span class="src-chip" [class.law]="c.kind === 'law'">
+              <app-icon [name]="c.kind === 'law' ? 'shield' : 'doc'" [size]="12" />
+              {{ c.source }}
+            </span>
+          }
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- note -->
+  @case ('note') {
+    <div class="card" [style.border-color]="card.tone === 'warn' ? 'var(--warn)' : 'var(--line)'">
+      <div class="card-body" style="display:flex; gap:11px; align-items:flex-start">
+        <span class="badge" [class.warning]="card.tone === 'warn'" [class.info]="card.tone === 'info'">
+          <app-icon [name]="card.tone === 'warn' ? 'alert' : 'spark'" [size]="12" [weight]="2.2" />
+        </span>
+        <div style="font-size:14px; line-height:1.55">{{ card.text }}</div>
+      </div>
+    </div>
+  }
+}
