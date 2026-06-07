@@ -21,6 +21,7 @@ npm-debug.log*
 # Data / secrets / uploads (never commit tenant data)
 /data/
 /uploads/
+/invoices/
 *.pdf
 *.sqlite
 *.db
@@ -34,3 +35,6 @@ htmlcov/
 # OCR scratch / local sample data (never commit real documents)
 .octmp/
 private_samples/
+
+# BM25 pickle artifacts (recreated on demand, never commit)
+backend/invoice_rag/storage/

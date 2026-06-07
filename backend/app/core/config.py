@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24
 
-    # embeddings / vector search
-    embedding_dim: int = 384
+    # embeddings / vector search — BGE-M3 native dim (shared with the laws RAG)
+    embedding_dim: int = 1024
 
     # LLM (provider-agnostic via LiteLLM)
     # Empty -> the chat uses the deterministic echo stub. Examples:

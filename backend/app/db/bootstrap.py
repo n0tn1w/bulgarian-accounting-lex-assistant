@@ -70,6 +70,27 @@ def init_db() -> None:
             )
         )
 
+        # Migrate the embedding column to the configured dimension if needed.
+        # pgvector stores the dimension in atttypmod. Resizing clears existing
+        # vectors (USING NULL); they are recomputed by rebuild_invoice_index.
+        target_dim = get_settings().embedding_dim
+        current_dim = conn.execute(
+            text(
+                "SELECT a.atttypmod FROM pg_attribute a "
+                "JOIN pg_class c ON a.attrelid = c.oid "
+                "WHERE c.relname = 'stored_invoices' AND a.attname = 'embedding'"
+            )
+        ).scalar()
+        if current_dim is not None and current_dim != target_dim:
+            conn.execute(text("DROP INDEX IF EXISTS idx_invoices_embedding"))
+            conn.execute(
+                text(
+                    f"ALTER TABLE stored_invoices "
+                    f"ALTER COLUMN embedding TYPE vector({target_dim}) USING NULL"
+                )
+            )
+            logger.info("Resized stored_invoices.embedding %s -> %s", current_dim, target_dim)
+
         # Indexes: per-company lookups + vector similarity (cosine).
         conn.execute(
             text(

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.domain import CompanyGroup, Invoice
 from app.db.models import StoredInvoice
-from app.services.embeddings import embed_invoice, embed_text
+from invoice_rag.indexing.dense import embed_invoice, embed_text
 from app.tools.ingest import group_by_company
 
 
@@ -49,6 +49,11 @@ def store_invoices(db: Session, tenant_id: uuid.UUID, invoices: list[Invoice]) -
     for inv in invoices:
         db.add(_to_row(tenant_id, inv))
     db.flush()
+    try:
+        from invoice_rag.indexing.pipeline import build_bm25_for_tenant
+        build_bm25_for_tenant(db, tenant_id)
+    except Exception:  # indexing is best-effort; dense search still works
+        pass
     return len(invoices)
 
 
