@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
-import { AssistantTurn, ConvoContext } from './chat';
+import { AssistantTurn, ChatCard, ConvoContext } from './chat';
 import { groupInvoices } from './grouping';
 import { DocCandidate, Invoice, TextUnit } from './models';
 
@@ -51,9 +51,11 @@ export class AssistantService {
       const res = await firstValueFrom(
         this.api.chat(message, ctx.history, ctx.activeInvoice?.company_key ?? null),
       );
-      const cards: AssistantTurn['cards'] = res.citations?.length
-        ? [{ type: 'sources', citations: res.citations, model: res.model }]
-        : [];
+      const cards: ChatCard[] = (res.cards as ChatCard[] | undefined)?.length
+        ? (res.cards as ChatCard[])
+        : res.citations?.length
+          ? [{ type: 'sources', citations: res.citations, model: res.model }]
+          : [];
       return { text: res.reply, cards };
     } catch {
       return this.note('I could not reach the assistant model just now. Try again in a moment.', 'warn');

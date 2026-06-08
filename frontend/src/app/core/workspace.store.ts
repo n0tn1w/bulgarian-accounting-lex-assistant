@@ -188,6 +188,53 @@ export class WorkspaceStore {
     this.updateActive((c) => ({ ...c, activeInvoice: invoice }));
   }
 
+  /**
+   * Resolves a citation's stored-invoice id (the DB UUID that RAG cites) to the
+   * full invoice and appends an 'invoice' card to the active conversation. The
+   * workingSet is keyed by the invoice's *domain* id, not this UUID, so we resolve
+   * server-side via /workspace/invoices/by-id. Degrades to a 'note' on failure.
+   */
+  openInvoice(invoiceId: string): void {
+    this.api.getInvoiceById(invoiceId).subscribe({
+      next: (invoice) => this._appendInvoiceCard(invoice),
+      error: () => this._appendNoteCard(`Could not open invoice ${invoiceId}.`),
+    });
+  }
+
+  private _appendInvoiceCard(invoice: import('./models').Invoice): void {
+    const id = ++this.seq;
+    this.updateActive((c) => ({
+      ...c,
+      messages: [
+        ...c.messages,
+        {
+          id,
+          role: 'assistant' as const,
+          text: '',
+          cards: [{ type: 'invoice' as const, invoice }],
+          ts: Date.now(),
+        },
+      ],
+    }));
+  }
+
+  private _appendNoteCard(text: string): void {
+    const id = ++this.seq;
+    this.updateActive((c) => ({
+      ...c,
+      messages: [
+        ...c.messages,
+        {
+          id,
+          role: 'assistant' as const,
+          text: '',
+          cards: [{ type: 'note' as const, tone: 'warn' as const, text }],
+          ts: Date.now(),
+        },
+      ],
+    }));
+  }
+
   removeInvoice(id: string): void {
     this.workingSet.update((set) => set.filter((i) => i.id !== id));
     this.conversations.update((list) =>

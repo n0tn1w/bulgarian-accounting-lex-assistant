@@ -62,6 +62,13 @@ def list_invoices(db: Session) -> list[Invoice]:
     return [Invoice.model_validate(r.payload) for r in rows]
 
 
+def get_invoice_by_id(db: Session, invoice_id: uuid.UUID) -> Invoice | None:
+    """Resolve a stored_invoices primary key (the id used by RAG citations) to the
+    full domain Invoice. RLS scopes the lookup to the current tenant."""
+    row = db.get(StoredInvoice, invoice_id)
+    return Invoice.model_validate(row.payload) if row else None
+
+
 def group_companies(db: Session) -> list[CompanyGroup]:
     return group_by_company(list_invoices(db))
 

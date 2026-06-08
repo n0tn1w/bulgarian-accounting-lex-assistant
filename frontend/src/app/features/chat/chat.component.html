@@ -29,7 +29,7 @@
             <div class="typing"><i></i><i></i><i></i></div>
           } @else {
             @if (m.text) { <div class="bubble" [innerHTML]="m.text | format"></div> }
-            @for (c of m.cards; track $index) { <app-card-view [card]="c" /> }
+            @for (c of m.cards; track $index) { <app-card-view [card]="c" (openInvoice)="store.openInvoice($event)" /> }
           }
         </div>
       </div>

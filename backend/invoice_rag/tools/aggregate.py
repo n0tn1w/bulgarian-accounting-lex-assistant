@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import StoredInvoice
 from invoice_rag.models import FilterParams, GroupBy, SumGroup, SumResult
+from invoice_rag.retrieval.hybrid import _row_to_view
 from invoice_rag.tools.filter import apply_filters
 
 
@@ -65,4 +66,5 @@ def sum_invoices(
     return SumResult(
         total_net=float(tot_net), total_vat=float(tot_vat), total_amount=float(tot_amt),
         currency=currency, count=len(rows), groups=groups,
+        invoices=[_row_to_view(r) for r in rows],
     )

@@ -298,6 +298,20 @@ app-chat, app-documents, app-search, app-inspector {
   padding: 4px 10px; border-radius: var(--r-pill); background: var(--pine-tint); color: var(--pine);
   border: 1px solid transparent; }
 .src-chip.law { background: var(--ochre-tint); color: var(--ochre-deep); }
+.src-chip.src-chip-clickable { cursor: pointer; transition: background .16s var(--ease), border-color .16s var(--ease); }
+.src-chip.src-chip-clickable:hover { background: #c9dfd0; border-color: var(--pine); }
+
+/* invoice list (agent filter / semantic results card) */
+.inv-list { padding: 0 16px; }
+.inv-row { display: flex; align-items: center; gap: 12px; padding: 9px 0;
+  border-bottom: 1px solid var(--line); font-size: 13px; }
+.inv-row:last-child { border-bottom: 0; }
+.inv-row .mono { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); min-width: 90px; }
+.inv-row .amt { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.inv-row-clickable { cursor: pointer; border-radius: 8px; padding-left: 6px; padding-right: 6px;
+  margin-left: -6px; margin-right: -6px;
+  transition: background .14s var(--ease); }
+.inv-row-clickable:hover { background: var(--pine-tint); }
 
 /* documents summary list */
 .doclist { display: flex; flex-direction: column; gap: 6px; }

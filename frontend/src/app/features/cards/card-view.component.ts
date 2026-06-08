@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
 import { ChatCard } from '../../core/chat';
 import { Invoice } from '../../core/models';
@@ -15,6 +15,9 @@ import { MoneyPipe } from '../../ui/money.pipe';
 })
 export class CardViewComponent {
   @Input({ required: true }) card!: ChatCard;
+
+  /** Emits the invoice_id (UUID) when the user clicks a cited chip or invoice row. */
+  @Output() openInvoice = new EventEmitter<string>();
 
   /** Confidence for a field key, or null when not tracked / zero. */
   conf(inv: Invoice, key: string): number | null {

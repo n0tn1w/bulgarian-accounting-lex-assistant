@@ -172,6 +172,10 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    citations: list[Citation]
+    citations: list[Citation] = Field(default_factory=list)
     model: str
-    context: list[RetrievedChunk]
+    context: list[RetrievedChunk] = Field(default_factory=list)
+    # agent fields (Phase 2)
+    cards: list[dict] = Field(default_factory=list)
+    refused: bool = False
+    tool_trace: list[dict] = Field(default_factory=list)

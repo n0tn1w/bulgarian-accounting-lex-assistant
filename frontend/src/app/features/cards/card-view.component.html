@@ -146,7 +146,10 @@
       <div class="card-body">
         <div class="src-list">
           @for (c of card.citations; track c.id) {
-            <span class="src-chip" [class.law]="c.kind === 'law'">
+            <span class="src-chip"
+                  [class.law]="c.kind === 'law'"
+                  [class.src-chip-clickable]="c.kind !== 'law'"
+                  (click)="c.kind !== 'law' && openInvoice.emit(c.id)">
               <app-icon [name]="c.kind === 'law' ? 'shield' : 'doc'" [size]="12" />
               {{ c.source }}
             </span>
@@ -165,6 +168,30 @@
         </span>
         <div style="font-size:14px; line-height:1.55">{{ card.text }}</div>
       </div>
+    </div>
+  }
+
+  <!-- comparison (agent period comparison) -->
+  @case ('comparison') {
+    <div class="card cmp-card">
+      <span>{{ card.metric }}</span>
+      <span class="mono">{{ card.value_a }} → {{ card.value_b }}</span>
+      <span [class.up]="card.delta >= 0" [class.down]="card.delta < 0">
+        {{ card.delta >= 0 ? '+' : '' }}{{ card.delta }}@if (card.pct_change != null) { ({{ card.pct_change }}%) }</span>
+    </div>
+  }
+
+  <!-- invoices (agent filter / semantic results) -->
+  @case ('invoices') {
+    <div class="card inv-list">
+      @for (v of card.items; track v.invoice_id) {
+        <div class="inv-row inv-row-clickable" (click)="openInvoice.emit(v.invoice_id)">
+          <span class="mono">{{ v.number }}</span>
+          <span>{{ v.vendor_name }}</span>
+          <span class="amt">{{ v.total_amount | money: (v.currency ?? undefined) }}</span>
+        </div>
+      }
+      @if (!card.items.length) { <span class="faint">No matching invoices.</span> }
     </div>
   }
 }

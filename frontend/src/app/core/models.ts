@@ -114,4 +114,10 @@ export interface GroupResponse { groups: CompanyGroup[]; }
 export interface SearchResponse { hits: SearchHit[]; }
 
 export interface ChatApiCitation { id: string; source: string; kind: string; }
-export interface ChatApiResponse { reply: string; citations: ChatApiCitation[]; model: string; }
+export interface ChatApiResponse {
+  reply: string;
+  citations: ChatApiCitation[];
+  model: string;
+  cards?: any[];       // agent cards (ChatCard-shaped from the backend)
+  refused?: boolean;
+}

@@ -22,7 +22,7 @@ import {
 // attribute or window.__LEDGERLY_API_BASE__).
 @Injectable({ providedIn: 'root' })
 export class ApiConfig {
-  base: string = (globalThis as any).__LEDGERLY_API_BASE__ ?? 'http://localhost:8000';
+  base: string = (globalThis as any).__LEDGERLY_API_BASE__ ?? '/api';
 }
 
 @Injectable({ providedIn: 'root' })
@@ -75,6 +75,10 @@ export class ApiService {
   }
   listWorkspaceInvoices(): Observable<WorkspaceInvoicesResponse> {
     return this.http.get<WorkspaceInvoicesResponse>(`${this.base}/workspace/invoices`);
+  }
+  /** Resolve a citation's stored-invoice id (DB UUID) to the full invoice. */
+  getInvoiceById(id: string): Observable<Invoice> {
+    return this.http.get<Invoice>(`${this.base}/workspace/invoices/by-id/${encodeURIComponent(id)}`);
   }
   workspaceCompanies(): Observable<GroupResponse> {
     return this.http.get<GroupResponse>(`${this.base}/workspace/companies`);

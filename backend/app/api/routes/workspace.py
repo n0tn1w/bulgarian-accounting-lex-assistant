@@ -3,10 +3,13 @@ and run vector search. All routes require auth and run under RLS."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import Principal, get_principal, get_tenant_db
+from app.domain import Invoice
 from app.api.schemas import (
     GroupResponse,
     PersistRequest,
@@ -35,6 +38,15 @@ def persist(
 @router.get("/invoices", response_model=WorkspaceInvoicesResponse)
 def list_invoices(db: Session = Depends(get_tenant_db)) -> WorkspaceInvoicesResponse:
     return WorkspaceInvoicesResponse(invoices=ws.list_invoices(db))
+
+
+@router.get("/invoices/by-id/{invoice_id}", response_model=Invoice)
+def get_invoice(invoice_id: uuid.UUID, db: Session = Depends(get_tenant_db)) -> Invoice:
+    """Resolve a citation's stored-invoice id to the full invoice (for drill-down)."""
+    inv = ws.get_invoice_by_id(db, invoice_id)
+    if inv is None:
+        raise HTTPException(status_code=404, detail="invoice not found")
+    return inv
 
 
 @router.get("/companies", response_model=GroupResponse)

@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     #   gpt-4o-mini                (needs OPENAI_API_KEY)
     llm_model: str = Field(default="", alias="LLM_MODEL")
     llm_api_base: str = Field(default="", alias="LLM_API_BASE")
+    # Provider key (e.g. Gemini/OpenAI/Anthropic). Passed to LiteLLM explicitly so
+    # it can live in .env — pydantic loads .env into Settings, not into os.environ.
+    llm_api_key: str = Field(default="", alias="LLM_API_KEY")
     llm_temperature: float = Field(default=0.2, alias="LLM_TEMPERATURE")
     llm_timeout: int = Field(default=60, alias="LLM_TIMEOUT")
 

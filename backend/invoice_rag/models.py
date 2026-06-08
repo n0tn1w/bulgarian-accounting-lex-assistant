@@ -60,6 +60,8 @@ class SumResult(BaseModel):
     currency: Optional[str] = None
     count: int
     groups: list[SumGroup] = Field(default_factory=list)
+    # Every contributing invoice, so the total is always citable (even ungrouped).
+    invoices: list[InvoiceView] = Field(default_factory=list)
 
 
 class ComparisonResult(BaseModel):
