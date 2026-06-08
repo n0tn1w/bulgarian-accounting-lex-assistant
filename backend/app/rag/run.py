@@ -30,4 +30,4 @@ def run(
     messages = build_messages(message, history)
     dispatch = make_dispatch(db, tenant_id)
     result = run_tool_loop(messages, TOOL_SCHEMAS, dispatch, complete, max_steps=max_steps)
-    return assemble(result, model=model)
+    return assemble(result, model=model, query=message)

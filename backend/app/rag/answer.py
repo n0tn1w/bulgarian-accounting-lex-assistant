@@ -36,7 +36,35 @@ def _law_sources_card(chunks: list, model: str) -> dict | None:
     }
 
 
-def assemble(loop: LoopResult, *, model: str) -> AgentAnswer:
+def _is_cyrillic(text: str) -> bool:
+    return any("Ѐ" <= ch <= "ӿ" for ch in text)
+
+
+def _fallback_reply(refused: bool, has_results: bool, query: str) -> str:
+    """A grounded note for when the model returns no prose (declined, hit the step
+    cap, or a tool found nothing), so the user never sees a blank message. Matches
+    the query's language (Bulgarian if it contains Cyrillic)."""
+    bg = _is_cyrillic(query)
+    if refused:
+        return (
+            "Мога да помогна с вашите фактури и с българското данъчно и счетоводно "
+            "законодателство. Този въпрос изглежда извън тези теми."
+            if bg
+            else "I can help with your invoices and with Bulgarian tax and accounting law. "
+            "This question looks outside those topics."
+        )
+    if has_results:
+        return "Ето какво намерих:" if bg else "Here is what I found:"
+    return (
+        "Не намерих съответни разпоредби в наличните данъчни и счетоводни закони, "
+        "нито свързани фактури. Опитайте да преформулирате въпроса."
+        if bg
+        else "I could not find matching provisions in the available tax and accounting "
+        "laws, or any related invoices. Try rephrasing the question."
+    )
+
+
+def assemble(loop: LoopResult, *, model: str, query: str = "") -> AgentAnswer:
     # Drop errored tool results (already surfaced to the model; no card).
     good = [c for c in loop.calls if not (isinstance(c.result, dict) and c.result.get("error"))]
 
@@ -50,9 +78,17 @@ def assemble(loop: LoopResult, *, model: str) -> AgentAnswer:
                 cards.append(law_card)
 
     refused = len(loop.calls) == 0
+    final_cards = [] if refused else cards
+
+    # Never return a blank message: the model can stop without prose (hit the step
+    # cap, declined, or a tool found nothing). Fall back to a clear, grounded note.
+    reply = (loop.final_text or "").strip() or _fallback_reply(
+        refused, bool(final_cards or citations), query
+    )
+
     return AgentAnswer(
-        reply=loop.final_text,
-        cards=[] if refused else cards,
+        reply=reply,
+        cards=final_cards,
         citations=citations,
         refused=refused,
         model=model,

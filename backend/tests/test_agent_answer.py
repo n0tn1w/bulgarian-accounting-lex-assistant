@@ -67,6 +67,16 @@ def test_query_law_becomes_law_sources_card():
     assert card["citations"][0] == {"id": "law:zdds-66", "source": "ЗДДС чл. 66", "kind": "law"}
 
 
+def test_empty_final_text_never_blank():
+    # no prose, no tools (model stalled / hit the step cap) -> graceful note, not blank
+    ans = assemble(LoopResult(final_text="", calls=[]), model="m", query="какъв е въпросът")
+    assert ans.reply.strip()
+    # a tool ran but found nothing (e.g. query_law outside the corpus) -> 'not found', no card
+    calls = [ToolCall("query_law", {"query": "x"}, [])]
+    ans2 = assemble(LoopResult(final_text="   ", calls=calls), model="m", query="данъци")
+    assert ans2.reply.strip() and ans2.cards == []
+
+
 def test_mixed_invoice_and_law_calls_produce_both():
     calls = [
         ToolCall("sum_invoices", {"vendor": "AWS"}, {
