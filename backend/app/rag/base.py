@@ -24,6 +24,7 @@ class Citation(BaseModel):
     id: str
     source: str
     kind: str
+    url: str | None = None   # source link (lex.bg article for laws)
 
 
 class Retriever(Protocol):

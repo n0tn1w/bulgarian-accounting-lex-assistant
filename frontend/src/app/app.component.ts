@@ -6,6 +6,7 @@ import { AuthComponent } from './features/auth/auth.component';
 import { ChatComponent } from './features/chat/chat.component';
 import { DocumentsComponent } from './features/documents/documents.component';
 import { InspectorComponent } from './features/inspector/inspector.component';
+import { LawsComponent } from './features/laws/laws.component';
 import { SearchComponent } from './features/search/search.component';
 import { IconComponent } from './ui/icon.component';
 
@@ -17,6 +18,7 @@ import { IconComponent } from './ui/icon.component';
     AuthComponent,
     ChatComponent,
     DocumentsComponent,
+    LawsComponent,
     SearchComponent,
     InspectorComponent,
     IconComponent,
@@ -72,6 +74,7 @@ export class AppComponent {
     switch (this.store.view()) {
       case 'documents': return 'Documents';
       case 'search': return 'Search';
+      case 'laws': return 'VAT & laws';
       default: return 'Assistant';
     }
   }

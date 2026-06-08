@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.2, alias="LLM_TEMPERATURE")
     llm_timeout: int = Field(default=60, alias="LLM_TIMEOUT")
 
+    # laws RAG (lex) index
+    # Build the index on startup if missing, then rebuild on this interval to pick up
+    # amendments. Set lex_auto_index=false to manage the index manually.
+    lex_auto_index: bool = Field(default=True, alias="LEX_AUTO_INDEX")
+    lex_refresh_interval_hours: int = Field(default=168, alias="LEX_REFRESH_INTERVAL_HOURS")
+
     # OCR
     ocr_languages: str = Field(default="bul+eng", alias="OCR_LANGUAGES")
     ocr_dpi: int = Field(default=300, alias="OCR_DPI")

@@ -146,13 +146,23 @@
       <div class="card-body">
         <div class="src-list">
           @for (c of card.citations; track c.id) {
-            <span class="src-chip"
-                  [class.law]="c.kind === 'law'"
-                  [class.src-chip-clickable]="c.kind !== 'law'"
-                  (click)="c.kind !== 'law' && openInvoice.emit(c.id)">
-              <app-icon [name]="c.kind === 'law' ? 'shield' : 'doc'" [size]="12" />
-              {{ c.source }}
-            </span>
+            @if (c.kind === 'law' && c.url) {
+              <a class="src-chip law" [href]="c.url" target="_blank" rel="noopener noreferrer"
+                 style="text-decoration:none">
+                <app-icon name="shield" [size]="12" />
+                {{ c.source }}
+              </a>
+            } @else if (c.kind !== 'law') {
+              <span class="src-chip src-chip-clickable" (click)="openInvoice.emit(c.id)">
+                <app-icon name="doc" [size]="12" />
+                {{ c.source }}
+              </span>
+            } @else {
+              <span class="src-chip law">
+                <app-icon name="shield" [size]="12" />
+                {{ c.source }}
+              </span>
+            }
           }
         </div>
       </div>

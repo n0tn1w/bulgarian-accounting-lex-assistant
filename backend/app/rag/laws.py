@@ -58,6 +58,13 @@ def _get_pipeline():
     return _pipeline
 
 
+def reset_pipeline() -> None:
+    """Drop the cached pipeline so the next query reopens the (possibly rebuilt) index."""
+    global _pipeline, _tried
+    _pipeline = None
+    _tried = False
+
+
 class LawsRetriever:
     name = "laws"
 

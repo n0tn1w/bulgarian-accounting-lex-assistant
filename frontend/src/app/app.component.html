@@ -44,7 +44,7 @@
         <span class="count">{{ store.invoiceCount() }}</span></div>
       <div class="nav-item" [class.active]="store.view() === 'search'" (click)="store.setView('search')">
         <app-icon class="ico" name="search" [size]="18" /><span>Search</span></div>
-      <div class="nav-item" style="opacity:.55; cursor:default">
+      <div class="nav-item" [class.active]="store.view() === 'laws'" (click)="store.setView('laws')">
         <app-icon class="ico" name="shield" [size]="18" /><span>VAT &amp; laws (RAG)</span></div>
 
       <div class="rail-foot">
@@ -92,6 +92,7 @@
       @switch (store.view()) {
         @case ('documents') { <app-documents /> }
         @case ('search') { <app-search /> }
+        @case ('laws') { <app-laws /> }
         @default { <app-chat /> }
       }
     </main>

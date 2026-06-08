@@ -8,7 +8,7 @@ import { groupInvoices } from './grouping';
 import { Invoice, SearchHit } from './models';
 
 type Health = 'up' | 'down' | 'checking';
-type View = 'assistant' | 'documents' | 'search';
+type View = 'assistant' | 'documents' | 'search' | 'laws';
 
 let _idCounter = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${++_idCounter}`;

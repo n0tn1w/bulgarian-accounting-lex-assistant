@@ -36,6 +36,6 @@ ENV PYTHONUNBUFFERED=1 \
 
 EXPOSE 8000
 
-# 2 workers is a sensible default for a containerised async API; tune with
-# WEB_CONCURRENCY env var if needed.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Single worker: the lex laws RAG loads large models (~4GB) per process and the index
+# maintenance assumes one builder. Scale with replicas rather than workers.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

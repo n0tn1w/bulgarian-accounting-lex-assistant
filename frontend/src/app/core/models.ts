@@ -113,7 +113,7 @@ export interface WorkspaceInvoicesResponse { invoices: Invoice[]; }
 export interface GroupResponse { groups: CompanyGroup[]; }
 export interface SearchResponse { hits: SearchHit[]; }
 
-export interface ChatApiCitation { id: string; source: string; kind: string; }
+export interface ChatApiCitation { id: string; source: string; kind: string; url?: string | null; }
 export interface ChatApiResponse {
   reply: string;
   citations: ChatApiCitation[];
@@ -121,3 +121,13 @@ export interface ChatApiResponse {
   cards?: any[];       // agent cards (ChatCard-shaped from the backend)
   refused?: boolean;
 }
+
+export interface RetrievedChunk {
+  id: string;
+  text: string;
+  source: string;
+  score: number;
+  kind: string;
+  metadata: Record<string, unknown>;
+}
+export interface RetrieveResponse { chunks: RetrievedChunk[]; }

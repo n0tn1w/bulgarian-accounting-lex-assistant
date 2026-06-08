@@ -11,6 +11,7 @@ import {
   HealthResponse,
   Invoice,
   InvoiceResponse,
+  RetrieveResponse,
   SearchResponse,
   TokenResponse,
   ValidateResponse,
@@ -97,5 +98,10 @@ export class ApiService {
     company_key?: string | null,
   ): Observable<ChatApiResponse> {
     return this.http.post<ChatApiResponse>(`${this.base}/chat`, { message, history, company_key, top_k: 6 });
+  }
+
+  // laws RAG (lex): retrieve cited law passages
+  retrieveLaws(query: string, top_k = 8): Observable<RetrieveResponse> {
+    return this.http.post<RetrieveResponse>(`${this.base}/rag/laws/retrieve`, { query, top_k });
   }
 }

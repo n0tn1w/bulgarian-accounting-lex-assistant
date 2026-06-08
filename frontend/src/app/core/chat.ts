@@ -4,6 +4,7 @@ export interface Citation {
   id: string;
   source: string;
   kind: string;
+  url?: string | null;
 }
 
 export type ChatCard =

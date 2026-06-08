@@ -37,6 +37,10 @@ async def lifespan(_app: FastAPI):
         init_db()
     except Exception as exc:  # DB is optional for the stateless tool endpoints
         logger.warning("Database bootstrap skipped/failed: %s", exc)
+
+    from app.rag import lex_index
+
+    lex_index.start()
     yield
 
 

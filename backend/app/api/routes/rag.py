@@ -79,5 +79,8 @@ def _no_model_reply(req: ChatRequest, db: Session, tenant_id: uuid.UUID) -> Chat
     context = sorted([*invoices, *laws], key=lambda c: c.score, reverse=True)
     history = [t.model_dump() for t in req.history]
     reply = EchoLLMClient().answer(req.message, context, history)
-    citations = [Citation(id=c.id, source=c.source, kind=c.kind) for c in context]
+    citations = [
+        Citation(id=c.id, source=c.source, kind=c.kind, url=(c.metadata or {}).get("url"))
+        for c in context
+    ]
     return ChatResponse(reply=reply, citations=citations, model=EchoLLMClient.name, context=context)
