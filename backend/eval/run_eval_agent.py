@@ -2,7 +2,7 @@
 
 Runs each labeled question through the AGENT (needs LLM_MODEL set) k times and
 reports routing accuracy (did it call the labeled tool) and refusal calibration.
-Compare against the naive baseline via the existing run_eval.py / /chat/baseline.
+Compare against the naive retrieve-and-stuff baseline via the existing run_eval.py.
 
 Usage:  LLM_MODEL=... python eval/run_eval_agent.py <tenant_uuid> [k]
 """

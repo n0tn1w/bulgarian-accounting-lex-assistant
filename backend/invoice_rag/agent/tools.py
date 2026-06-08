@@ -1,8 +1,9 @@
-"""Invoice tool registry for the agent: LLM tool-schemas + tenant-bound dispatch.
+"""Invoice tool registry: LLM tool-schemas + tenant-bound dispatch.
 
-Schemas describe the five Phase-1 tools for function calling. dispatch (added in
-a later task) validates the model's args and calls the real tool on the tenant
-session.
+This is the INVOICE half of the agent — the five structured tools over the
+tenant's own invoices. The orchestrator (app/rag/agent) imports these schemas and
+this dispatch, combines them with the laws tool, and drives the loop. Nothing here
+knows about laws, routing, or the LLM loop.
 """
 from __future__ import annotations
 
@@ -28,7 +29,6 @@ def _object(properties: dict, required: list[str] | None = None) -> dict:
     return {"type": "object", "properties": properties, "required": required or []}
 
 
-# FilterParams-derived property shapes, reused by filter/sum/semantic.
 _FILTER_PROPS = {
     "vendor": {"type": "string", "description": "counterparty name, partial match"},
     "period": {"type": "string", "description": "natural-language date range, e.g. 'this quarter', 'last month', 'ytd', 'last year'"},
@@ -50,7 +50,7 @@ _DATERANGE = _object({
     "date_to": {"type": "string", "description": "ISO YYYY-MM-DD"},
 }, ["date_from", "date_to"])
 
-TOOL_SCHEMAS = [
+INVOICE_TOOL_SCHEMAS = [
     _fn("get_invoice", "Look up a single invoice by its number.",
         _object({"number": {"type": "string", "description": "invoice number"}}, ["number"])),
     _fn("filter_invoices",
@@ -73,6 +73,8 @@ TOOL_SCHEMAS = [
         _object({"query": {"type": "string"}, "top_k": {"type": "integer"}}, ["query"])),
 ]
 
+INVOICE_TOOL_NAMES = frozenset(t["function"]["name"] for t in INVOICE_TOOL_SCHEMAS)
+
 
 def _dump(obj: Any) -> Any:
     """Pydantic model(s) -> JSON-able dict/list. Carries numbers verbatim."""
@@ -81,8 +83,9 @@ def _dump(obj: Any) -> Any:
     return obj.model_dump(mode="json") if obj is not None else None
 
 
-def make_dispatch(db: Session, tenant_id: uuid.UUID):
-    """Return dispatch(name, args) bound to this tenant session (RLS-scoped)."""
+def make_invoice_dispatch(db: Session, tenant_id: uuid.UUID):
+    """Return dispatch(name, args) over the invoice tools, bound to this tenant
+    session (RLS-scoped). Errors are surfaced as {"error": ...}, never raised."""
 
     def dispatch(name: str, args: dict) -> Any:
         try:
@@ -105,7 +108,7 @@ def make_dispatch(db: Session, tenant_id: uuid.UUID):
             if name == "semantic_search":
                 return _dump(semantic_search(db, tenant_id, args["query"],
                                              top_k=args.get("top_k", 10)))
-            return {"error": f"unknown tool: {name}"}
+            return {"error": f"unknown invoice tool: {name}"}
         except Exception as exc:  # bad args / tool failure -> surfaced to the model
             return {"error": f"{type(exc).__name__}: {exc}"}
 

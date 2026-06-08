@@ -1,10 +1,10 @@
-"""LLM clients for the chat orchestrator.
+"""LLM plumbing for the chat orchestrator.
 
-A LiteLLM-backed client makes the model provider interchangeable (local Ollama or cloud
-Claude/OpenAI), selected via LLM_MODEL. EchoLLMClient is the no-model fallback so the
-pipeline always returns something.
+`litellm_complete` is the tool-calling adapter the agent loop drives (passes
+`tools`, returns tool calls). `EchoLLMClient` is the no-model fallback: when
+LLM_MODEL is unset (or the agent errors), /chat summarizes the retrieved context
+without a model so the app always responds.
 """
-
 from __future__ import annotations
 
 from typing import Protocol
@@ -12,20 +12,38 @@ from typing import Protocol
 from app.core import get_settings
 from app.rag.base import RetrievedChunk
 
-SYSTEM_PROMPT = (
-    "You are Ledgerly, an assistant for Bulgarian accountants. Answer in the user's "
-    "language (Bulgarian or English). Use ONLY the information in CONTEXT — it contains "
-    "the user's own invoices and excerpts of Bulgarian accounting/tax law. Cite the "
-    "sources you use inline in square brackets exactly as given (e.g. [ЗДДС чл. 117] or "
-    "[БАЛКАН АД · 2000002487]). Never invent figures, dates or article numbers; if the "
-    "context does not contain the answer, say so plainly. This is guidance, not legal advice."
-)
 
+def litellm_complete(messages: list[dict], tools: list[dict]) -> dict:
+    """Default `complete` callable for the tool loop. Normalizes a LiteLLM
+    completion into {"content", "tool_calls"} (OpenAI/LiteLLM shape)."""
+    import litellm
 
-def _format_context(context: list[RetrievedChunk]) -> str:
-    if not context:
-        return "(no context retrieved)"
-    return "\n".join(f"[{c.source}] ({c.kind}) {c.text}" for c in context)
+    s = get_settings()
+    kwargs: dict = {
+        "model": s.llm_model,
+        "messages": messages,
+        "tools": tools,
+        "temperature": s.llm_temperature,
+        "timeout": s.llm_timeout,
+    }
+    if s.llm_api_base:
+        kwargs["api_base"] = s.llm_api_base
+    if s.llm_api_key:
+        kwargs["api_key"] = s.llm_api_key
+    resp = litellm.completion(**kwargs)
+    msg = resp["choices"][0]["message"]
+    content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)
+    raw_tcs = msg.get("tool_calls") if isinstance(msg, dict) else getattr(msg, "tool_calls", None)
+    tool_calls = None
+    if raw_tcs:
+        tool_calls = []
+        for tc in raw_tcs:
+            d = tc if isinstance(tc, dict) else tc.model_dump()
+            tool_calls.append({
+                "id": d["id"], "type": "function",
+                "function": {"name": d["function"]["name"], "arguments": d["function"]["arguments"]},
+            })
+    return {"content": content, "tool_calls": tool_calls}
 
 
 class LLMClient(Protocol):
@@ -35,7 +53,7 @@ class LLMClient(Protocol):
 
 
 class EchoLLMClient:
-    """Summarises the retrieved context instead of calling a model."""
+    """No-model fallback: summarises the retrieved context instead of calling a model."""
 
     name = "echo-stub"
 
@@ -43,47 +61,10 @@ class EchoLLMClient:
         if not context:
             return (
                 "No grounded context was retrieved for this question. Add some invoices, "
-                "or rephrase — and connect a model (LLM_MODEL) for a written answer."
+                "or connect a model (set LLM_MODEL) for the full assistant."
             )
         lines = [f"Based on {len(context)} retrieved source(s):"]
         for c in context[:6]:
             lines.append(f"• [{c.source}] {c.text}")
-        lines.append("\n(No model connected — set LLM_MODEL to get a written answer.)")
+        lines.append("\n(No model connected — set LLM_MODEL for the full tool-using assistant.)")
         return "\n".join(lines)
-
-
-class LiteLLMClient:
-    """Calls any provider supported by LiteLLM (Ollama / Claude / OpenAI / etc.)."""
-
-    def __init__(self) -> None:
-        self.settings = get_settings()
-        self.name = self.settings.llm_model
-
-    def answer(self, question: str, context: list[RetrievedChunk], history: list[dict]) -> str:
-        import litellm
-
-        messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
-        for turn in history[-6:]:
-            role, content = turn.get("role"), turn.get("content")
-            if role in ("user", "assistant") and content:
-                messages.append({"role": role, "content": content})
-        messages.append(
-            {"role": "user", "content": f"CONTEXT:\n{_format_context(context)}\n\nQUESTION: {question}"}
-        )
-
-        kwargs: dict = {
-            "model": self.settings.llm_model,
-            "messages": messages,
-            "temperature": self.settings.llm_temperature,
-            "timeout": self.settings.llm_timeout,
-        }
-        if self.settings.llm_api_base:
-            kwargs["api_base"] = self.settings.llm_api_base
-
-        resp = litellm.completion(**kwargs)
-        return resp["choices"][0]["message"]["content"]
-
-
-def get_llm_client() -> LLMClient:
-    """LiteLLM client when a model is configured, otherwise the echo fallback."""
-    return LiteLLMClient() if get_settings().llm_model else EchoLLMClient()

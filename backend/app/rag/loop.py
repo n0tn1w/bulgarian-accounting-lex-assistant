@@ -1,8 +1,8 @@
-"""Generic, invoice-agnostic tool-calling loop.
+"""Generic, domain-agnostic tool-calling loop.
 
 Drives a model (via the injected `complete` callable) until it returns prose or
-hits max_steps. Knows nothing about invoices, tenants, or cards — so it can be
-lifted to app/rag/ unchanged when a second agent (e.g. laws) appears.
+hits max_steps. Knows nothing about invoices, laws, tenants, or cards — it just
+runs whatever tools the model asks for.
 
 `complete(messages, tool_schemas) -> {"content": str|None, "tool_calls": list|None}`
 is the only model dependency. tool_calls follow the OpenAI/LiteLLM shape:

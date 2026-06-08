@@ -19,5 +19,5 @@ With `LLM_MODEL` set and the index built:
 
 Reports routing accuracy (did the agent call the labeled tool), refusal calibration,
 and prints the tools called per question. The LLM is non-deterministic — `k`>1 runs
-each question multiple times. Compare against the naive baseline via the existing
-`run_eval.py` / `/chat/baseline`.
+each question multiple times. Compare against the naive retrieve-and-stuff baseline
+via the existing `run_eval.py`.

@@ -1,4 +1,4 @@
-"""Public entry point: question -> AgentAnswer."""
+"""Public entry point: question -> AgentAnswer (routes invoices vs laws)."""
 from __future__ import annotations
 
 import uuid
@@ -6,11 +6,11 @@ from typing import Callable
 
 from sqlalchemy.orm import Session
 
-from invoice_rag.agent.answer import AgentAnswer, assemble
-from invoice_rag.agent.llm import litellm_complete
-from invoice_rag.agent.loop import run_tool_loop
-from invoice_rag.agent.prompts import build_messages
-from invoice_rag.agent.tools import TOOL_SCHEMAS, make_dispatch
+from app.rag.answer import AgentAnswer, assemble
+from app.rag.llm import litellm_complete
+from app.rag.loop import run_tool_loop
+from app.rag.prompts import build_messages
+from app.rag.tools import TOOL_SCHEMAS, make_dispatch
 
 
 def run(
@@ -23,11 +23,9 @@ def run(
     model: str = "",
     max_steps: int = 5,
 ) -> AgentAnswer:
-    """Route `message` through the tool-calling loop and assemble cards.
-
-    `complete` defaults to the LiteLLM adapter; tests inject a fake. `model` is
-    surfaced in the response for transparency.
-    """
+    """Route `message` through the tool-calling loop (invoice tools + query_law)
+    and assemble cards. `complete` defaults to the LiteLLM adapter; tests inject a
+    fake. `model` is surfaced in the response for transparency."""
     complete = complete or litellm_complete
     messages = build_messages(message, history)
     dispatch = make_dispatch(db, tenant_id)

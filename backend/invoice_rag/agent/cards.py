@@ -1,29 +1,17 @@
-"""Assemble the agent's response from the loop's tool-call log.
+"""Turn invoice tool results into frontend cards + citations.
 
-The model's prose is the narrative; every figure and citation is rendered from
-the tool *results* here — the model never produces a number. Cards mirror the
-frontend ChatCard shapes (sum / comparison / invoices). No tool calls at all =>
-refusal (the model either declined an out-of-scope question, or tried to answer
-a data question ungrounded, which we do not trust).
+The INVOICE half of answer assembly: given the invoice tool calls the model made
+(as plain (name, result) pairs — no dependency on the orchestrator's loop types),
+produce the cards (sum / comparison / invoices / sources) and the contributing
+Citations. The orchestrator (app/rag/agent) composes these with law sources and the
+refusal logic. Numbers come only from tool results — never from the model.
 """
 from __future__ import annotations
 
 from datetime import date as _date
 from typing import Any
 
-from pydantic import BaseModel, Field
-
-from invoice_rag.agent.loop import LoopResult
 from invoice_rag.models import Citation
-
-
-class AgentAnswer(BaseModel):
-    reply: str
-    cards: list[dict] = Field(default_factory=list)
-    citations: list[Citation] = Field(default_factory=list)
-    refused: bool = False
-    model: str = ""
-    tool_trace: list[dict] = Field(default_factory=list)
 
 
 def _parse_date(s: Any) -> _date | None:
@@ -39,15 +27,14 @@ def _cite_view(v: dict) -> Citation:
                     amount=v.get("total_amount"), relevance="match")
 
 
-def assemble(loop: LoopResult, *, model: str) -> AgentAnswer:
+def assemble(calls: list[tuple[str, Any]], *, model: str) -> tuple[list[dict], list[Citation]]:
+    """`calls` = [(tool_name, result), ...] for INVOICE tools only (errored results
+    already filtered out). Returns (cards, citations)."""
     cards: list[dict] = []
     citations: list[Citation] = []
 
-    for c in loop.calls:
-        r = c.result
-        if isinstance(r, dict) and r.get("error"):
-            continue  # tool error already surfaced to the model; no card
-        if c.name == "sum_invoices":
+    for name, r in calls:
+        if name == "sum_invoices":
             invs = r.get("invoices") or []
             cards.append({"type": "sum", **{k: v for k, v in r.items() if k != "invoices"}})
             if invs:  # rich, citable contributors (works for ungrouped totals too)
@@ -56,20 +43,19 @@ def assemble(loop: LoopResult, *, model: str) -> AgentAnswer:
                 for g in r.get("groups", []):
                     for iid in g.get("invoice_ids", []):
                         citations.append(Citation(invoice_id=iid, relevance=f"contributed to {g.get('key')}"))
-        elif c.name == "compare_periods":
+        elif name == "compare_periods":
             cards.append({"type": "comparison", **r})
-        elif c.name in ("filter_invoices", "semantic_search"):
+        elif name in ("filter_invoices", "semantic_search"):
             items = r if isinstance(r, list) else []
             cards.append({"type": "invoices", "items": items})
             citations.extend(_cite_view(v) for v in items)
-        elif c.name == "get_invoice":
+        elif name == "get_invoice":
             items = [r] if isinstance(r, dict) and r.get("invoice_id") else []
             cards.append({"type": "invoices", "items": items})
             citations.extend(_cite_view(v) for v in items)
 
     # Aggregate answers (sum/compare) have no row list, so surface the sources as
-    # chips — reuses the existing `sources` card. Skip when a list card already
-    # shows the rows (filter/semantic/get_invoice).
+    # chips (the `sources` card). Skip when a list card already shows the rows.
     has_list = any(card["type"] == "invoices" for card in cards)
     rich = [c for c in citations if c.invoice_number]
     if cards and rich and not has_list:
@@ -84,12 +70,4 @@ def assemble(loop: LoopResult, *, model: str) -> AgentAnswer:
             "model": model,
         })
 
-    refused = len(loop.calls) == 0
-    return AgentAnswer(
-        reply=loop.final_text,
-        cards=[] if refused else cards,
-        citations=citations,
-        refused=refused,
-        model=model,
-        tool_trace=[{"tool": c.name, "args": c.args} for c in loop.calls],
-    )
+    return cards, citations
