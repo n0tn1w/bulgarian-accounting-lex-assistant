@@ -40,6 +40,11 @@ def _get_pipeline():
     if str(_LEX_DIR) not in sys.path:
         sys.path.insert(0, str(_LEX_DIR))
     try:
+        # On Apple Silicon the bge models exhaust the MPS GPU pool under memory
+        # pressure; force CPU (query-time cost is small). No-op on Linux/CUDA.
+        import torch
+
+        torch.backends.mps.is_available = lambda: False
         from rag.retrieval.pipeline import RetrievalPipeline
 
         _pipeline = RetrievalPipeline()
