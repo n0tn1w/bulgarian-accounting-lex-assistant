@@ -59,6 +59,15 @@ class Settings(BaseSettings):
     llm_temperature: float = Field(default=0.2, alias="LLM_TEMPERATURE")
     llm_timeout: int = Field(default=60, alias="LLM_TIMEOUT")
 
+    # Fallback model used when no hosted llm_model is configured. In Docker this is the
+    # bundled `ollama` Mistral container, so the app has a working LLM out of the box
+    # without an API key. Set llm_fallback_enabled=false to force the echo stub instead.
+    llm_fallback_enabled: bool = Field(default=True, alias="LLM_FALLBACK_ENABLED")
+    llm_fallback_model: str = Field(default="ollama/mistral", alias="LLM_FALLBACK_MODEL")
+    llm_fallback_api_base: str = Field(
+        default="http://localhost:11434", alias="LLM_FALLBACK_API_BASE"
+    )
+
     # laws RAG (lex) index
     # Build the index on startup if missing, then rebuild on this interval to pick up
     # amendments. Set lex_auto_index=false to manage the index manually.
@@ -68,6 +77,34 @@ class Settings(BaseSettings):
     # OCR
     ocr_languages: str = Field(default="bul+eng", alias="OCR_LANGUAGES")
     ocr_dpi: int = Field(default=300, alias="OCR_DPI")
+
+    # Use a PDF's embedded text layer when it has one (digital PDFs from ERPs, customs,
+    # banks). It is exact and fast; OCR is reserved for scanned/image PDFs.
+    ocr_prefer_embedded_text: bool = Field(default=True, alias="OCR_PREFER_EMBEDDED_TEXT")
+
+    # OCR image preprocessing (only applied when OpenCV is installed).
+    ocr_preprocess: bool = Field(default=True, alias="OCR_PREPROCESS")
+    ocr_deskew: bool = Field(default=True, alias="OCR_DESKEW")
+    ocr_denoise: bool = Field(default=True, alias="OCR_DENOISE")
+    ocr_threshold: str = Field(default="otsu", alias="OCR_THRESHOLD")  # otsu | adaptive | none
+    # Words OCR'd below this confidence (0..1) are flagged so extraction can
+    # down-weight them and try a register/vision recovery.
+    ocr_word_conf_min: float = Field(default=0.60, alias="OCR_WORD_CONF_MIN")
+
+    # LLM vision fallback for poorly scanned pages (needs a vision-capable model).
+    ocr_vision_fallback: bool = Field(default=True, alias="OCR_VISION_FALLBACK")
+    ocr_vision_model: str = Field(default="", alias="OCR_VISION_MODEL")  # "" -> reuse llm_model
+    # Page mean confidence below which the vision model is consulted.
+    ocr_vision_conf_min: float = Field(default=0.75, alias="OCR_VISION_CONF_MIN")
+
+    # Commercial-register lookup by EIK (scrapes web.company.guru). Cached, times out
+    # gracefully and no-ops when disabled. Enabling it sends EIKs to a third party.
+    company_lookup_enabled: bool = Field(default=True, alias="COMPANY_LOOKUP_ENABLED")
+    company_lookup_base_url: str = Field(
+        default="https://web.company.guru", alias="COMPANY_LOOKUP_BASE_URL"
+    )
+    company_lookup_timeout: float = Field(default=5.0, alias="COMPANY_LOOKUP_TIMEOUT")
+    company_lookup_cache_size: int = Field(default=512, alias="COMPANY_LOOKUP_CACHE_SIZE")
 
     # comparison / IR (TF-IDF fusion)
     ir_weight_word: float = Field(default=0.65, alias="IR_WEIGHT_WORD")

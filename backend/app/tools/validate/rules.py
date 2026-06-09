@@ -108,16 +108,20 @@ def rule_vat_number_format(inv: Invoice) -> ValidationResult | None:
 
 
 def rule_eik_format(inv: Invoice) -> ValidationResult | None:
-    """A Bulgarian EIK is 9 or 13 digits. Only all-digit values are checked, since a
-    foreign counterparty's tax id may be stored here and is not an EIK."""
-    import re
+    """A Bulgarian EIK is 9 or 13 digits with a modulo-11 check digit. Only all-digit
+    values are checked, since a foreign counterparty's tax id may be stored here and is
+    not an EIK."""
+    from app.tools.ingest.eik import validate_eik
 
-    pat = re.compile(r"^\d{9}(\d{4})?$")
-    bad = [
-        f"{who}: {party.eik}"
-        for who, party in (("supplier", inv.supplier), ("recipient", inv.recipient))
-        if party.eik and party.eik.isdigit() and not pat.match(party.eik)
-    ]
+    bad = []
+    for who, party in (("supplier", inv.supplier), ("recipient", inv.recipient)):
+        eik = party.eik
+        if not eik or not eik.isdigit():
+            continue
+        if len(eik) not in (9, 13):
+            bad.append(f"{who}: {eik} (invalid length)")
+        elif not validate_eik(eik):
+            bad.append(f"{who}: {eik} (checksum failed)")
     if not bad and not inv.supplier.eik and not inv.recipient.eik:
         return None
     passed = not bad

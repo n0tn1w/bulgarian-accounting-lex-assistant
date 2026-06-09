@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { RetrievedChunk } from '../../core/models';
 import { IconComponent } from '../../ui/icon.component';
 
@@ -9,7 +10,7 @@ import { IconComponent } from '../../ui/icon.component';
   selector: 'app-laws',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, TranslatePipe],
   templateUrl: './laws.component.html',
 })
 export class LawsComponent {

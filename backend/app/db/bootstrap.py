@@ -56,17 +56,24 @@ def init_db() -> None:
             )
         )
 
-        # Row-Level Security: tenant isolation on stored_invoices.
-        conn.execute(text("ALTER TABLE stored_invoices ENABLE ROW LEVEL SECURITY"))
-        conn.execute(text("ALTER TABLE stored_invoices FORCE ROW LEVEL SECURITY"))
-        conn.execute(text("DROP POLICY IF EXISTS tenant_isolation ON stored_invoices"))
+        # Row-Level Security: tenant isolation on the tenant-scoped tables.
+        for table in ("stored_invoices", "document_files"):
+            conn.execute(text(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"))
+            conn.execute(text(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY"))
+            conn.execute(text(f"DROP POLICY IF EXISTS tenant_isolation ON {table}"))
+            conn.execute(
+                text(
+                    f"""
+                    CREATE POLICY tenant_isolation ON {table}
+                    USING (tenant_id = current_setting('app.current_tenant', true)::uuid)
+                    WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid)
+                    """
+                )
+            )
         conn.execute(
             text(
-                """
-                CREATE POLICY tenant_isolation ON stored_invoices
-                USING (tenant_id = current_setting('app.current_tenant', true)::uuid)
-                WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid)
-                """
+                "CREATE INDEX IF NOT EXISTS idx_docfiles_tenant_external "
+                "ON document_files (tenant_id, external_id)"
             )
         )
 

@@ -20,9 +20,9 @@ from app.api.schemas import (
     RetrieveRequest,
     RetrieveResponse,
 )
-from app.core import get_settings
 from app.rag import Citation, EchoLLMClient, LawsRetriever, RetrievedChunk
 from app.rag import run as run_agent
+from app.rag.llm import resolve_llm
 from invoice_rag.models import InvoiceView
 from invoice_rag.tools.search import semantic_search
 
@@ -60,11 +60,11 @@ def retrieve_laws(req: RetrieveRequest, db: Session = Depends(get_tenant_db)) ->
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, principal: Principal = Depends(get_principal),
          db: Session = Depends(get_tenant_db)) -> ChatResponse:
-    settings = get_settings()
-    if settings.llm_model:                       # the agent needs a model
+    model, _, _ = resolve_llm()                  # hosted model, else the bundled fallback
+    if model:
         try:
             history = [t.model_dump() for t in req.history]
-            ans = run_agent(db, principal.tenant_id, req.message, history, model=settings.llm_model)
+            ans = run_agent(db, principal.tenant_id, req.message, history, model=model)
             return ChatResponse(reply=ans.reply, citations=[], model=ans.model,
                                 cards=ans.cards, refused=ans.refused, tool_trace=ans.tool_trace)
         except Exception as exc:  # provider/network error -> degrade to retrieval echo

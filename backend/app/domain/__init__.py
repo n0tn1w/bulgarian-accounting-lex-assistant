@@ -1,6 +1,7 @@
 from .models import (
     Company,
     CompanyGroup,
+    CompanyInfo,
     DocCandidate,
     DuplicateMatch,
     ExtractedField,
@@ -24,6 +25,7 @@ __all__ = [
     "Invoice",
     "Company",
     "CompanyGroup",
+    "CompanyInfo",
     "MatchEvidence",
     "DuplicateMatch",
     "Severity",

@@ -11,12 +11,16 @@ from __future__ import annotations
 import re
 from decimal import Decimal, InvalidOperation
 
+from app.core import get_settings
 from app.domain import ExtractedField, Invoice, Party, TaxLine
 
 from .bg_amount_words import total_from_words
 from .company import tag_company
+from .company_lookup import lookup_company
 from .currency import detect_currency_text
-from .document_types import detect_direction, detect_document_type, detect_reverse_charge
+from .document_types import Direction, detect_direction, detect_document_type, detect_reverse_charge
+from .eik import validate_eik
+from .ocr import normalize_token
 
 _HIGH = 0.9
 _LOW = 0.5
@@ -68,12 +72,29 @@ def normalize_date(raw: str) -> str:
 # field extractors
 
 
+_EIK_RE = re.compile(r"(?:ЕИК|ЕИН|БУЛСТАТ)\s*[:\-№]?\s*(\d{9}(?:\d{4})?)(?!\d)", re.IGNORECASE)
+
+
+def _eik_list(text: str) -> list[str]:
+    """EIKs in order of appearance (deduped). ЕИК / ЕИН / БУЛСТАТ are interchangeable
+    labels for the company id (9 or 13 digits); the lookahead stops the match from
+    swallowing an adjacent column's digits."""
+    out: list[str] = []
+    for m in _EIK_RE.findall(text):
+        if m not in out:
+            out.append(m)
+    return out
+
+
 def _all_eik(text: str) -> set[str]:
-    return set(re.findall(r"ЕИК\s*[:\-]?\s*(\d{9})", text, re.IGNORECASE))
+    return set(_eik_list(text))
 
 
 def _all_vat(text: str) -> list[str]:
-    return [m.replace(" ", "").upper() for m in re.findall(r"BG\s*\d{9,10}", text, re.IGNORECASE)]
+    # BG VAT is BG + exactly 9 or 10 digits; the lookahead prevents grabbing trailing
+    # digits from an adjacent number (which would corrupt the company key).
+    return [m.replace(" ", "").upper()
+            for m in re.findall(r"BG\s*\d{9,10}(?!\d)", text, re.IGNORECASE)]
 
 
 def extract_invoice_number(text: str) -> ExtractedField:
@@ -132,20 +153,72 @@ def _clean_name(raw: str) -> str:
 
 
 def _extract_party_name(text: str, labels: str) -> ExtractedField:
-    pat = rf"(?:{labels})\s*[:\-]?\s*([А-Яа-яA-Za-z0-9\s\-\"'.,]+?{_COMPANY_SUFFIX})"
+    # The legal-form suffix must be its own token (a space before it, a boundary after),
+    # otherwise a short suffix like "ЕТ" would match inside a name such as "БЕТА".
+    pat = rf"(?:{labels})\s*[:\-]?\s*([А-Яа-яA-Za-z0-9\s\-\"'.,]+?)\s+({_COMPANY_SUFFIX})\b"
     m = re.search(pat, text, re.IGNORECASE)
     if m:
-        name = _clean_name(m.group(1))
+        name = _clean_name(f"{m.group(1)} {m.group(2)}")
         return ExtractedField(value=name or None, confidence=_HIGH if name else 0.0)
     return ExtractedField(value=None, confidence=0.0)
 
 
+_SUPPLIER_LABELS = "Доставчик|ДОСТАВЧИК|Продавач|Изпълнител"
+_RECIPIENT_LABELS = "Получател|ПОЛУЧАТЕЛ|Купувач|Клиент"
+
+
 def extract_supplier_name(text: str) -> ExtractedField:
-    return _extract_party_name(text, "Доставчик|ДОСТАВЧИК|Продавач|Изпълнител")
+    return _extract_party_name(text, _SUPPLIER_LABELS)
 
 
 def extract_recipient_name(text: str) -> ExtractedField:
-    return _extract_party_name(text, "Получател|ПОЛУЧАТЕЛ|Купувач|Клиент")
+    return _extract_party_name(text, _RECIPIENT_LABELS)
+
+
+def _split_party_blocks(text: str) -> tuple[str, str]:
+    """Split the document into the supplier and recipient sections by their role labels.
+
+    Handles either ordering on the page; returns ("", "") for a block that has no label.
+    """
+    sup = re.search(_SUPPLIER_LABELS, text, re.IGNORECASE)
+    rec = re.search(_RECIPIENT_LABELS, text, re.IGNORECASE)
+    if sup and rec:
+        if sup.start() < rec.start():
+            return text[sup.start():rec.start()], text[rec.start():]
+        return text[sup.start():], text[rec.start():sup.start()]
+    if sup:
+        return text[sup.start():], ""
+    if rec:
+        return "", text[rec.start():]
+    return "", ""
+
+
+def _assign_owners(
+    sup_block: str, rec_block: str, all_values: list[str], finder
+) -> tuple[str | None, str | None]:
+    """Assign extracted values (EIKs/VATs) to supplier vs recipient by block, with a
+    global best-effort fallback when the sections didn't separate them."""
+    sup = next(iter(finder(sup_block)), None)
+    rec = next(iter(finder(rec_block)), None)
+    if sup is None and rec is None and all_values:
+        sup = all_values[0]
+        rec = all_values[1] if len(all_values) > 1 else None
+    elif sup is None and rec is not None:
+        sup = next((v for v in all_values if v != rec), None)
+    elif rec is None and sup is not None:
+        rec = next((v for v in all_values if v != sup), None)
+    return sup, rec
+
+
+def _apply_low_conf(field: ExtractedField, low_conf_tokens: set[str] | None) -> ExtractedField:
+    """Down-weight a captured field if any of its words were recognised with low OCR
+    confidence, so recovery (register / vision) knows to revisit it."""
+    if not low_conf_tokens or not field.value:
+        return field
+    tokens = {normalize_token(t) for t in field.value.split()}
+    if tokens & low_conf_tokens:
+        field.confidence = min(field.confidence, _LOW)
+    return field
 
 
 # Tolerant separator: optional colon/dash, optional currency (BGN / лв / EUR), then amount.
@@ -194,51 +267,107 @@ def extract_total_amount(text: str) -> ExtractedField:
     ])
 
 
-def _identify_vat_owners(text: str, vats: list[str]) -> tuple[str | None, str | None]:
-    """Best-effort split of VAT numbers between supplier and recipient by section."""
-    if not vats:
-        return None, None
-    if len(vats) == 1:
-        return vats[0], None
-    supplier = recipient = None
-    sup = re.search(
-        r"(?:Доставчик|ДОСТАВЧИК|Продавач|Изпълнител).*?(?=Получател|ПОЛУЧАТЕЛ|Купувач|$)",
-        text, re.IGNORECASE | re.DOTALL,
-    )
-    if sup:
-        sect = sup.group(0).replace(" ", "")
-        supplier = next((v for v in vats if v in sect), None)
-    recipient = next((v for v in vats if v != supplier), None)
-    return supplier, recipient
+def parse_invoice_fields(
+    text: str, low_conf_tokens: set[str] | None = None
+) -> dict[str, ExtractedField]:
+    """Extract all known fields with confidence. Keys are stable field names.
 
+    Each party's name/VAT/EIK is read from its own block so a single party never mixes
+    two companies' data; names fall back to a whole-document scan when a block is empty.
+    """
+    sup_block, rec_block = _split_party_blocks(text)
 
-def parse_invoice_fields(text: str) -> dict[str, ExtractedField]:
-    """Extract all known fields with confidence. Keys are stable field names."""
     fields = {
         "number": extract_invoice_number(text),
         "date": extract_date(text),
-        "supplier_name": extract_supplier_name(text),
-        "recipient_name": extract_recipient_name(text),
+        "supplier_name": _apply_low_conf(extract_supplier_name(sup_block or text), low_conf_tokens),
+        "recipient_name": _apply_low_conf(extract_recipient_name(rec_block or text), low_conf_tokens),
         "net_amount": extract_net_amount(text),
         "vat_amount": extract_vat_amount(text),
         "total_amount": extract_total_amount(text),
     }
 
-    vats = _all_vat(text)
-    sup_vat, rec_vat = _identify_vat_owners(text, vats)
+    sup_vat, rec_vat = _assign_owners(sup_block, rec_block, _all_vat(text), _all_vat)
     fields["supplier_vat"] = ExtractedField(value=sup_vat, confidence=_LOW if sup_vat else 0.0)
     fields["recipient_vat"] = ExtractedField(value=rec_vat, confidence=_LOW if rec_vat else 0.0)
 
-    eiks = sorted(_all_eik(text))
-    fields["supplier_eik"] = ExtractedField(
-        value=eiks[0] if eiks else None, confidence=_HIGH if eiks else 0.0
-    )
+    sup_eik, rec_eik = _assign_owners(sup_block, rec_block, _eik_list(text), _eik_list)
+    fields["supplier_eik"] = ExtractedField(value=sup_eik, confidence=_HIGH if sup_eik else 0.0)
+    fields["recipient_eik"] = ExtractedField(value=rec_eik, confidence=_HIGH if rec_eik else 0.0)
     return fields
 
 
-def extract_invoice_from_text(text: str, doc_id: str, source: str = "ocr") -> Invoice:
+def resolve_perspective(perspective: str, direction: str) -> str:
+    """Resolve the party-of-interest. "auto" follows the VAT direction; an explicit
+    "supplier"/"recipient" is kept as-is."""
+    if perspective in ("supplier", "recipient"):
+        return perspective
+    if direction == Direction.SALE.value:
+        return "supplier"
+    if direction == Direction.PURCHASE.value:
+        return "recipient"
+    return "supplier"
+
+
+def swap_parties(invoice: Invoice) -> Invoice:
+    """Swap supplier and recipient, including their per-field confidences. Used as the
+    manual override when the roles were captured the wrong way round."""
+    invoice.supplier, invoice.recipient = invoice.recipient, invoice.supplier
+    fc = invoice.field_confidence
+    for a, b in (
+        ("supplier_name", "recipient_name"),
+        ("supplier_vat", "recipient_vat"),
+        ("supplier_eik", "recipient_eik"),
+    ):
+        if a in fc or b in fc:
+            fc[a], fc[b] = fc.get(b, 0.0), fc.get(a, 0.0)
+    return invoice
+
+
+def recover_parties(invoice: Invoice) -> Invoice:
+    """Fill or correct counterparty fields from the commercial register, keyed by a
+    checksum-valid EIK. A name is overridden only when missing or low-confidence, so a
+    clean reading from the document is trusted over the register."""
+    if not get_settings().company_lookup_enabled:
+        return invoice
+    for party, name_key, vat_key in (
+        (invoice.supplier, "supplier_name", "supplier_vat"),
+        (invoice.recipient, "recipient_name", "recipient_vat"),
+    ):
+        if not validate_eik(party.eik or ""):
+            continue
+        info = lookup_company(party.eik)
+        if info is None:
+            continue
+        recovered: list[str] = []
+        name_conf = invoice.field_confidence.get(name_key, 0.0)
+        if info.name and (not party.name or name_conf < _HIGH):
+            party.name = info.name
+            invoice.field_confidence[name_key] = 0.95
+            recovered.append("name")
+        if info.vat_number and not party.vat_number:
+            party.vat_number = info.vat_number
+            invoice.field_confidence[vat_key] = 0.95
+            recovered.append("vat_number")
+        if info.address_line1 and not party.address:
+            party.address = info.address_line1
+            recovered.append("address")
+        if recovered:
+            party.source = "merged"
+            party.recovered_fields = recovered
+    return invoice
+
+
+def extract_invoice_from_text(
+    text: str,
+    doc_id: str,
+    source: str = "ocr",
+    *,
+    perspective: str = "auto",
+    low_conf_tokens: set[str] | None = None,
+) -> Invoice:
     """Build a typed Invoice from raw OCR/plain text."""
-    f = parse_invoice_fields(text)
+    f = parse_invoice_fields(text, low_conf_tokens)
 
     def amt(key: str) -> Decimal | None:
         v = f[key].value
@@ -258,6 +387,7 @@ def extract_invoice_from_text(text: str, doc_id: str, source: str = "ocr") -> In
         recipient=Party(
             name=f["recipient_name"].value,
             vat_number=f["recipient_vat"].value,
+            eik=f["recipient_eik"].value,
         ),
         net_amount=amt("net_amount"),
         vat_amount=amt("vat_amount"),
@@ -290,4 +420,7 @@ def extract_invoice_from_text(text: str, doc_id: str, source: str = "ocr") -> In
         invoice.tax_lines.append(
             TaxLine(rate=rate, base=invoice.net_amount, amount=invoice.vat_amount)
         )
+
+    invoice.perspective = resolve_perspective(perspective, invoice.direction)
+    recover_parties(invoice)
     return tag_company(invoice)

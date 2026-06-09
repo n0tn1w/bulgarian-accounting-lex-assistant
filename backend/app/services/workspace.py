@@ -13,7 +13,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.domain import CompanyGroup, Invoice
-from app.db.models import StoredInvoice
+from app.db.models import DocumentFile, StoredInvoice
 from invoice_rag.indexing.dense import embed_invoice, embed_text
 from app.tools.ingest import group_by_company
 
@@ -93,3 +93,39 @@ def search_invoices(
 def delete_invoice(db: Session, external_id: str) -> int:
     result = db.execute(delete(StoredInvoice).where(StoredInvoice.external_id == external_id))
     return result.rowcount or 0
+
+
+def store_document_file(
+    db: Session,
+    tenant_id: uuid.UUID,
+    external_id: str,
+    filename: str | None,
+    content_type: str | None,
+    data: bytes,
+) -> uuid.UUID:
+    """Upsert the original file for a document (keyed by external_id, within the tenant)."""
+    db.execute(delete(DocumentFile).where(DocumentFile.external_id == external_id))
+    row = DocumentFile(
+        tenant_id=tenant_id,
+        external_id=external_id,
+        filename=filename,
+        content_type=content_type or "application/pdf",
+        size=len(data),
+        data=data,
+    )
+    db.add(row)
+    db.flush()
+    return row.id
+
+
+def get_document_file(db: Session, external_id: str) -> DocumentFile | None:
+    """Most-recent stored file for a document. RLS scopes the lookup to the tenant."""
+    return (
+        db.execute(
+            select(DocumentFile)
+            .where(DocumentFile.external_id == external_id)
+            .order_by(DocumentFile.created_at.desc())
+        )
+        .scalars()
+        .first()
+    )

@@ -6,44 +6,44 @@
       </span>
       <div>
         <div style="font-family:var(--display);font-size:26px;font-weight:600;letter-spacing:-.02em">Ledgerly</div>
-        <div class="faint" style="font-size:13px">The accountant’s assistant · EU</div>
+        <div class="faint" style="font-size:13px">{{ 'auth.sub' | t }}</div>
       </div>
     </div>
 
     <div class="auth-tabs">
-      <button [class.on]="mode() === 'login'" (click)="switch('login')">Sign in</button>
-      <button [class.on]="mode() === 'register'" (click)="switch('register')">Create firm</button>
+      <button [class.on]="mode() === 'login'" (click)="switch('login')">{{ 'auth.login' | t }}</button>
+      <button [class.on]="mode() === 'register'" (click)="switch('register')">{{ 'auth.register' | t }}</button>
     </div>
 
     <form (submit)="submit($event)">
       @if (mode() === 'register') {
         <label class="field">
-          <span>Firm / workspace name</span>
+          <span>{{ 'auth.firmName' | t }}</span>
           <input type="text" [value]="tenant()" (input)="set(tenant, $event)"
-                 placeholder="e.g. Acme Accounting OOD" required autocomplete="organization" />
+                 [placeholder]="'auth.firmPlaceholder' | t" required autocomplete="organization" />
         </label>
       }
       <label class="field">
-        <span>Email</span>
+        <span>{{ 'auth.email' | t }}</span>
         <input type="email" [value]="email()" (input)="set(email, $event)"
-               placeholder="you@firm.bg" required autocomplete="email" />
+               [placeholder]="'auth.emailPlaceholder' | t" required autocomplete="email" />
       </label>
       <label class="field">
-        <span>Password</span>
+        <span>{{ 'auth.password' | t }}</span>
         <input type="password" [value]="password()" (input)="set(password, $event)"
-               placeholder="At least 8 characters" required minlength="8"
+               [placeholder]="'auth.passwordPlaceholder' | t" required minlength="8"
                [attr.autocomplete]="mode() === 'login' ? 'current-password' : 'new-password'" />
       </label>
 
       @if (error()) { <div class="auth-error"><app-icon name="alert" [size]="14" /> {{ error() }}</div> }
 
       <button class="btn primary block" type="submit" [disabled]="busy()">
-        {{ busy() ? 'Please wait…' : mode() === 'login' ? 'Sign in' : 'Create firm & continue' }}
+        {{ (busy() ? 'auth.wait' : mode() === 'login' ? 'auth.submitLogin' : 'auth.submitRegister') | t }}
       </button>
     </form>
 
     <div class="auth-foot faint">
-      Your data stays isolated per firm (Postgres Row-Level Security) and never leaves your workspace.
+      {{ 'auth.foot' | t }}
     </div>
   </div>
 </div>

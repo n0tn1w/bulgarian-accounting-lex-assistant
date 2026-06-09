@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, Numeric, String, Text, func
+from sqlalchemy import ForeignKey, Integer, LargeBinary, Numeric, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -75,5 +75,23 @@ class StoredInvoice(Base):
     source: Mapped[str | None] = mapped_column(String(20))
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)  # full Invoice JSON
     embedding: Mapped[list[float] | None] = mapped_column(Vector(_DIM))
+
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class DocumentFile(Base):
+    # The original uploaded file for a document, kept so the user can preview it against
+    # the extraction. Tenant-scoped and protected by RLS; keyed by external_id (the
+    # domain Invoice.id) so the frontend can address it directly.
+    __tablename__ = "document_files"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), nullable=False, index=True)
+    external_id: Mapped[str] = mapped_column(Text, nullable=False, index=True)
+
+    filename: Mapped[str | None] = mapped_column(Text)
+    content_type: Mapped[str] = mapped_column(String(100), default="application/pdf")
+    size: Mapped[int] = mapped_column(Integer, default=0)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())

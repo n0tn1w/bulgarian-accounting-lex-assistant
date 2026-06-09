@@ -34,6 +34,11 @@ class Party(BaseModel):
     vat_number: Optional[str] = None  # e.g. BG123456789
     eik: Optional[str] = None  # Bulgarian company id (9 digits)
     address: Optional[str] = None
+    # Where the party data came from: extracted from the document, looked up in the
+    # commercial register, or a merge of both. recovered_fields lists the keys filled
+    # or corrected from the register so the UI can flag them.
+    source: str = "extracted"  # extracted | register | merged | vision
+    recovered_fields: list[str] = Field(default_factory=list)
 
 
 class LineItem(BaseModel):
@@ -70,6 +75,9 @@ class Invoice(BaseModel):
 
     supplier: Party = Field(default_factory=Party)
     recipient: Party = Field(default_factory=Party)
+    # Which party the document is read from. "supplier" preserves the historical
+    # grouping behaviour; "auto" lets ingestion resolve it from the direction.
+    perspective: str = "supplier"  # supplier | recipient | auto
 
     line_items: list[LineItem] = Field(default_factory=list)
     tax_lines: list[TaxLine] = Field(default_factory=list)
@@ -80,6 +88,9 @@ class Invoice(BaseModel):
 
     # Per-field extraction confidence, keyed by field name.
     field_confidence: dict[str, float] = Field(default_factory=dict)
+    # Document-type specific fields that don't fit the invoice shape: fiscal device
+    # number, IBAN, statement period/balances, customs MRN, etc.
+    extra: dict[str, str] = Field(default_factory=dict)
 
     # Identified counterparty company (set during ingestion, see tools/ingest/company.py).
     company_key: Optional[str] = None
@@ -138,6 +149,20 @@ class Company(BaseModel):
     vat: Optional[str] = None
     eik: Optional[str] = None
     invoice_count: int = 0
+
+
+class CompanyInfo(BaseModel):
+    # Registry record for an EIK, used to recover or confirm a counterparty.
+    eik: str
+    name: Optional[str] = None
+    vat_number: Optional[str] = None
+    status: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    zip_code: Optional[str] = None
+    address_line1: Optional[str] = None
+    manager: Optional[str] = None
+    source: str = "register"
 
 
 class CompanyGroup(BaseModel):

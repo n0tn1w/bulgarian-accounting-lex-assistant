@@ -2,22 +2,21 @@
   <div class="search-bar">
     <app-icon name="shield" [size]="18" />
     <input type="text" [value]="query()" (input)="onInput($event)" (keydown)="onKey($event)"
-           placeholder="Ask about Bulgarian accounting & tax law - ДДС, осигуровки, срокове…" />
+           [placeholder]="'laws.placeholder' | t" />
     <button class="btn primary" (click)="run()" [disabled]="loading()">
-      {{ loading() ? 'Searching…' : 'Search laws' }}
+      {{ (loading() ? 'laws.searching' : 'laws.button') | t }}
     </button>
   </div>
 
   @if (loading()) {
     <div class="typing" style="justify-content:center; margin-top:40px"><i></i><i></i><i></i></div>
   } @else if (searched() && results().length === 0) {
-    <div class="insp-empty" style="margin-top:48px">No legislation matched that query.</div>
+    <div class="insp-empty" style="margin-top:48px">{{ 'laws.noMatch' | t }}</div>
   } @else if (!searched()) {
     <div class="empty" style="margin-top:6vh">
       <div class="glyph"><app-icon name="shield" [size]="32" [weight]="1.6" /></div>
-      <h2>Search Bulgarian <em>law</em>.</h2>
-      <p>Hybrid search over scraped legislation (ЗДДС, ЗКПО, ЗДДФЛ, КСО, ЗСч, ДОПК and more),
-         article by article, with citations that link back to lex.bg.</p>
+      <h2 [innerHTML]="'laws.empty.title' | t"></h2>
+      <p>{{ 'laws.empty.body' | t }}</p>
     </div>
   } @else {
     <div class="search-results">

@@ -5,14 +5,13 @@
       <!-- empty state -->
       <div class="empty">
         <div class="glyph"><app-icon name="ledger" [size]="36" [weight]="1.6" /></div>
-        <h2>Talk to your <em>books</em>.</h2>
-        <p>Paste an invoice, drop an XML batch or a PDF, and ask. Every figure comes from
-           deterministic tools and traces back to a source - no guessed numbers.</p>
+        <h2 [innerHTML]="'chat.empty.title' | t"></h2>
+        <p>{{ 'chat.empty.body' | t }}</p>
         <div class="starters">
-          @for (s of starters; track s.title) {
+          @for (s of starters; track s.titleKey) {
             <button class="starter" (click)="s.action()">
-              <span class="st"><app-icon [name]="s.icon" [size]="16" /> {{ s.title }}</span>
-              <span class="sd">{{ s.desc }}</span>
+              <span class="st"><app-icon [name]="s.icon" [size]="16" /> {{ s.titleKey | t }}</span>
+              <span class="sd">{{ s.descKey | t }}</span>
             </button>
           }
         </div>
@@ -23,7 +22,7 @@
       <div class="msg" [class.assistant]="m.role === 'assistant'" [class.user]="m.role === 'user'">
         <div class="av">{{ m.role === 'assistant' ? 'L' : 'You'.charAt(0) }}</div>
         <div class="body">
-          <div class="who">{{ m.role === 'assistant' ? 'Ledgerly' : 'You' }}</div>
+          <div class="who">{{ m.role === 'assistant' ? ('chat.who.assistant' | t) : ('chat.who.you' | t) }}</div>
 
           @if (m.pending) {
             <div class="typing"><i></i><i></i><i></i></div>
@@ -41,15 +40,15 @@
   <div class="composer-inner">
     @if (!store.hasConversation()) {
       <div class="chips">
-        <button class="chip-btn" (click)="store.sendText('validate')">Validate active invoice</button>
-        <button class="chip-btn" (click)="store.sendText('find duplicates')">Find duplicates</button>
-        <button class="chip-btn" (click)="openFile()">Upload XML / PDF</button>
+        <button class="chip-btn" (click)="store.sendText('validate')">{{ 'chat.chip.validate' | t }}</button>
+        <button class="chip-btn" (click)="store.sendText('find duplicates')">{{ 'chat.chip.duplicates' | t }}</button>
+        <button class="chip-btn" (click)="openFile()">{{ 'chat.chip.upload' | t }}</button>
       </div>
     }
 
     <div class="composer" [class.focus]="focused()" [class.drag]="dragging()"
          (drop)="onDrop($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave()">
-      <button class="icon-btn" (click)="openFile()" title="Attach XML, PDF or text">
+      <button class="icon-btn" (click)="openFile()" [title]="'chat.chip.upload' | t">
         <app-icon name="paperclip" [size]="18" />
       </button>
       <textarea
@@ -59,13 +58,13 @@
         (keydown)="onKeydown($event)"
         (focus)="focused.set(true)"
         (blur)="focused.set(false)"
-        [placeholder]="dragging() ? 'Drop the file to ingest…' : 'Paste an invoice, drop a file, or ask…'"></textarea>
+        [placeholder]="(dragging() ? 'chat.composer.drop' : 'chat.composer.placeholder') | t"></textarea>
       <button class="send" [disabled]="!draft().trim() || store.busy()" (click)="send()" title="Send">
         <app-icon name="send" [size]="19" />
       </button>
     </div>
     <div class="composer-foot">
-      Grounded in your documents · figures from deterministic tools, not the model · bg + en
+      {{ 'chat.composer.foot' | t }}
     </div>
   </div>
   <input #file type="file" accept=".xml,.pdf,.txt,text/xml,application/pdf,text/plain"

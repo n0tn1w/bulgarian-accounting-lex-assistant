@@ -1,49 +1,99 @@
 <div class="insp-head">
-  <div class="t">Inspector</div>
-  <div class="s">Active invoice &amp; company working sets</div>
+  <div class="t">{{ 'inspector.title' | t }}</div>
+  <div class="s">{{ 'inspector.sub' | t }}</div>
 </div>
 
 <div class="insp-body">
   @if (store.activeInvoice(); as inv) {
     <div class="insp-section">
-      <div class="h"><app-icon name="doc" [size]="13" /> Active invoice
-        <span class="count chip">{{ pct(avgConfidence()) }} conf</span></div>
+      <div class="h"><app-icon name="doc" [size]="13" /> {{ 'inspector.activeDoc' | t }}
+        <span class="count chip">{{ pct(avgConfidence()) }} {{ 'inspector.conf' | t }}</span></div>
 
-      <div class="summary-line"><span class="k">Number</span><span class="v mono">{{ inv.number || '—' }}</span></div>
-      <div class="summary-line"><span class="k">Date</span><span class="v mono">{{ inv.date || '—' }}</span></div>
-      <div class="summary-line"><span class="k">Company</span><span class="v">{{ inv.company_name || '—' }}</span></div>
-      <div class="summary-line"><span class="k">VAT / EIK</span>
+      <div class="summary-line"><span class="k">{{ 'field.type' | t }}</span>
+        <select class="type-select" [value]="inv.doc_type || 'invoice'" (change)="onDocType($event)">
+          @for (t of DOC_TYPES; track t.value) { <option [value]="t.value">{{ t.labelKey | t }}</option> }
+        </select></div>
+
+      <div class="summary-line"><span class="k">{{ 'field.number' | t }}</span><span class="v mono">{{ inv.number || '—' }}</span></div>
+      <div class="summary-line"><span class="k">{{ 'field.date' | t }}</span><span class="v mono">{{ inv.date || '—' }}</span></div>
+
+      <div class="summary-line"><span class="k">{{ 'field.supplier' | t }}{{ inv.perspective === 'supplier' ? ' ★' : '' }}</span>
+        <span class="v">{{ inv.supplier.name || '—' }}
+          @if (recovered(inv.supplier)) { <span class="badge info">{{ 'badge.register' | t }}</span> }
+        </span></div>
+      <div class="summary-line"><span class="k">{{ 'field.supplierVatEik' | t }}</span>
         <span class="v mono">{{ inv.supplier.vat_number || inv.supplier.eik || '—' }}</span></div>
-      <div class="summary-line"><span class="k">Net</span>
-        <span class="v mono">{{ inv.net_amount | money: inv.currency }}</span></div>
-      <div class="summary-line"><span class="k">VAT</span>
-        <span class="v mono">{{ inv.vat_amount | money: inv.currency }}</span></div>
-      <div class="summary-line"><span class="k">Total</span>
-        <span class="v mono">{{ inv.total_amount | money: inv.currency }}</span></div>
 
-      <div style="display:flex; gap:8px; margin-top:14px">
-        <button class="btn primary" style="flex:1" (click)="store.sendText('validate')" [disabled]="store.busy()">
-          <app-icon name="check" [size]="15" /> Validate
+      <div class="summary-line"><span class="k">{{ 'field.recipient' | t }}{{ inv.perspective === 'recipient' ? ' ★' : '' }}</span>
+        <span class="v">{{ inv.recipient.name || '—' }}
+          @if (recovered(inv.recipient)) { <span class="badge info">{{ 'badge.register' | t }}</span> }
+        </span></div>
+      <div class="summary-line"><span class="k">{{ 'field.recipientVatEik' | t }}</span>
+        <span class="v mono">{{ inv.recipient.vat_number || inv.recipient.eik || '—' }}</span></div>
+
+      @if (hasAmounts(inv)) {
+        <div class="summary-line"><span class="k">{{ 'field.net' | t }}</span>
+          <span class="v mono">{{ inv.net_amount | money: inv.currency }}</span></div>
+        <div class="summary-line"><span class="k">{{ 'field.vat' | t }}</span>
+          <span class="v mono">{{ inv.vat_amount | money: inv.currency }}</span></div>
+        <div class="summary-line"><span class="k">{{ 'field.total' | t }}</span>
+          <span class="v mono">{{ inv.total_amount | money: inv.currency }}</span></div>
+      }
+
+      @for (e of extras(inv); track e[0]) {
+        <div class="summary-line"><span class="k">{{ extraKey(e[0]) | t }}</span><span class="v mono">{{ e[1] }}</span></div>
+      }
+
+      @if (hasAmounts(inv)) {
+        <div style="display:flex; gap:8px; margin-top:14px">
+          <button class="btn primary" style="flex:1" (click)="store.sendText('validate')" [disabled]="store.busy()">
+            <app-icon name="check" [size]="15" /> {{ 'inspector.action.validate' | t }}
+          </button>
+          <button class="btn ghost" style="flex:1" (click)="store.sendText('find duplicates')" [disabled]="store.busy()">
+            <app-icon name="scale" [size]="15" /> {{ 'inspector.action.duplicates' | t }}
+          </button>
+        </div>
+      }
+
+      <div class="suggested">
+        @for (a of suggestedActions(inv); track a.labelKey) {
+          <button class="btn ghost sm" (click)="runSuggested(a.promptKey)" [disabled]="store.busy()">
+            <app-icon name="spark" [size]="13" /> {{ a.labelKey | t }}
+          </button>
+        }
+      </div>
+
+      <div style="display:flex; gap:8px; margin-top:8px">
+        <button class="btn ghost" style="flex:1" (click)="store.swapActiveParties()"
+                [title]="'inspector.action.swapTitle' | t">
+          <app-icon name="scale" [size]="15" /> {{ 'inspector.action.swap' | t }}
         </button>
-        <button class="btn ghost" style="flex:1" (click)="store.sendText('find duplicates')" [disabled]="store.busy()">
-          <app-icon name="scale" [size]="15" /> Duplicates
+        <button class="btn ghost" style="flex:1"
+                (click)="store.lookupActiveCompany('supplier')"
+                [disabled]="store.lookupBusy() || !inv.supplier.eik">
+          <app-icon name="ledger" [size]="15" /> {{ 'inspector.action.lookupEik' | t }}
         </button>
       </div>
+
+      <button class="btn ghost" style="width:100%; margin-top:8px" (click)="togglePreview()">
+        <app-icon name="doc" [size]="15" />
+        {{ (showPreview() ? 'inspector.preview.hide' : 'inspector.preview.show') | t }}
+      </button>
+      @if (showPreview()) {
+        <app-pdf-viewer [externalId]="inv.id" />
+      }
     </div>
   } @else {
-    <div class="insp-empty">
-      No active invoice yet.<br />Paste an invoice or drop a file, and its details -
-      fields, confidence, company and validation - appear here.
-    </div>
+    <div class="insp-empty">{{ 'inspector.empty' | t }}</div>
   }
 
   <div class="insp-section">
-    <div class="h"><app-icon name="ledger" [size]="13" /> Companies
+    <div class="h"><app-icon name="ledger" [size]="13" /> {{ 'inspector.companies' | t }}
       <span class="count">{{ store.companyCount() }}</span></div>
 
     @if (store.companyCount() === 0) {
       <div class="faint" style="font-size:13px; line-height:1.5">
-        Upload invoices to organise them into per-company working sets.
+        {{ 'inspector.companiesEmpty' | t }}
       </div>
     } @else {
       <div class="doclist">
@@ -51,7 +101,7 @@
           <button class="company-pill as-btn" (click)="store.setView('documents')">
             <span class="cmark">{{ (g.company.name || '?').charAt(0) }}</span>
             <div style="min-width:0; flex:1; text-align:left">
-              <div class="cname">{{ g.company.name || 'Unknown company' }}</div>
+              <div class="cname">{{ g.company.name || ('docs.company.unknown' | t) }}</div>
               <div class="cmeta mono">{{ g.company.vat || g.company.eik || g.company.key }}</div>
             </div>
             <span class="badge info">{{ g.company.invoice_count }}</span>

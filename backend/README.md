@@ -30,12 +30,12 @@ docker compose -f ../infra/docker-compose.yml up -d
 # 2) Backend
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt        # core + lint deps
-# optional OCR (needs system Tesseract + Poppler + `bul` language pack):
-#   brew install tesseract tesseract-lang poppler   # macOS
-pip install -r requirements-ocr.txt
-# laws RAG (lex): heavy deps + build the index (scrapes lex.bg, downloads ~2GB models)
-pip install -r requirements-lex.txt && python lex/run_ingest.py
+pip install -r requirements-dev.txt        # everything + lint/test tools
+# OCR also needs the system Tesseract + Poppler + `bul` language pack:
+#   brew install tesseract tesseract-lang poppler                    # macOS
+#   apt-get install tesseract-ocr tesseract-ocr-bul poppler-utils    # Debian/Ubuntu
+# laws RAG (lex): build the index once (scrapes lex.bg, downloads ~2GB models)
+python lex/run_ingest.py
 ```
 
 ## Run
@@ -61,8 +61,8 @@ uvicorn app.main:app --reload --port 8000
 | POST | `/chat` | merge both RAGs and answer via the LLM (cited) |
 
 The laws RAG (`/rag/laws/*` and the laws half of `/chat`) is the lex engine; it needs
-`requirements-lex.txt` installed and the index built (`python lex/run_ingest.py`).
-Without the index it returns nothing and `/chat` answers from invoices alone.
+the index built (`python lex/run_ingest.py`). Without the index it returns nothing and
+`/chat` answers from invoices alone.
 
 ## Design rules from the architecture docs
 

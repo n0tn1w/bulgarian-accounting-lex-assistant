@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 
 
@@ -26,27 +27,56 @@ class Direction(str, Enum):
     UNKNOWN = "unknown"
 
 
-# most specific first; credit/debit notes and proformas also contain "фактура"
-_TYPE_KEYWORDS: list[tuple[DocumentType, tuple[str, ...]]] = [
+# Decisive phrases for the specific (non-invoice) types, most specific first. A
+# customs declaration or credit note also contains "фактура", so these are checked
+# before the invoice baseline. Presence of any phrase fixes the type.
+_SPECIFIC_PRIMARY: list[tuple[DocumentType, tuple[str, ...]]] = [
     (DocumentType.CREDIT_NOTE, ("кредитно известие", "кредитно изв", "credit note")),
     (DocumentType.DEBIT_NOTE, ("дебитно известие", "дебитно изв", "debit note")),
     (DocumentType.PROFORMA, ("проформа", "pro-forma", "proforma")),
     (DocumentType.SIMPLIFIED_INVOICE, ("опростена фактура",)),
-    (DocumentType.PROTOCOL, ("протокол по чл", "протокол №", "протокол no", "protocol")),
+    (DocumentType.PROTOCOL, ("протокол по чл", "протокол №", "протокол no")),
     (DocumentType.FISCAL_RECEIPT,
      ("фискален бон", "касов бон", "касова бележка", "фискална касова", "fiscal receipt")),
     (DocumentType.CUSTOMS_DECLARATION,
-     ("митническа декларация", "single administrative document", "ескд", "mrn")),
+     ("митническа декларация", "единен административен документ",
+      "single administrative document", "ескд")),
     (DocumentType.BANK_STATEMENT,
      ("банково извлечение", "извлечение по сметка", "движение по сметка", "bank statement")),
     (DocumentType.GOODS_RECEIPT,
      ("стокова разписка", "складова разписка", "delivery note", "приемо-предавателен")),
     (DocumentType.EXPENSE_REPORT, ("авансов отчет", "отчет за разходи", "expense report")),
-    (DocumentType.INVOICE, ("фактура", "ф-ра", "invoice", "факт. №")),
 ]
 
+# Weaker, weighted signals used when no decisive phrase is found — e.g. an H1/CDS
+# customs declaration whose "митническа декларация" header was OCR-garbled, or a
+# format variant. These are scored so no single garbled token decides the type.
+_SECONDARY_SIGNALS: dict[DocumentType, tuple[tuple[str, int], ...]] = {
+    DocumentType.CUSTOMS_DECLARATION: (
+        ("митническа стойност", 3), ("допускане за свободно обращение", 4),
+        ("свободно обращение", 2), ("ставки на митата", 2),
+        ("вносител", 2), ("износител", 2), ("non-union goods", 3), ("тарик", 2),
+    ),
+    DocumentType.BANK_STATEMENT: (
+        ("начално салдо", 3), ("крайно салдо", 3), ("движение по сметка", 3),
+    ),
+    DocumentType.FISCAL_RECEIPT: (
+        ("фискален", 2), ("фу рег", 2), ("артикул", 1),
+    ),
+}
+_SECONDARY_MIN = 4  # minimum score for a secondary match to win over the invoice baseline
+
+# An 18-character Movement Reference Number (year + country + 14 alphanumerics) is a
+# strong customs signal on its own.
+_MRN_RE = re.compile(r"\b\d{2}[A-Z]{2}[A-Z0-9]{14}\b")
+
+_INVOICE_KEYWORDS = ("фактура", "ф-ра", "invoice", "факт. №")
+
 _SALE_HINTS = ("продажб", "prodajb", "издадена фактура", "издадени фактури", "изх. фактура", "sales")
-_PURCHASE_HINTS = ("покупк", "pokupk", "получена фактура", "получени фактури", "вх. фактура", "purchase")
+_PURCHASE_HINTS = (
+    "покупк", "pokupk", "получена фактура", "получени фактури", "вх. фактура", "purchase",
+    "допускане за свободно обращение", "import of non-union", "вносител",
+)
 _REVERSE_CHARGE = (
     "чл. 117", "чл.117", "чл 117", "чл. 163", "чл.163",
     "обратно начисляване", "обратно начисление", "reverse charge",
@@ -55,15 +85,36 @@ _REVERSE_CHARGE = (
 
 
 def detect_document_type(text: str) -> DocumentType:
+    """Classify a document. Decisive phrases win first; otherwise weighted secondary
+    signals (incl. an MRN) catch format variants; the invoice baseline is the fallback."""
     t = (text or "").lower()
-    for doc_type, keywords in _TYPE_KEYWORDS:
+
+    for doc_type, keywords in _SPECIFIC_PRIMARY:
         if any(k in t for k in keywords):
             return doc_type
+
+    best_type, best_score = DocumentType.OTHER, 0
+    for doc_type, signals in _SECONDARY_SIGNALS.items():
+        score = sum(weight for kw, weight in signals if kw in t)
+        if doc_type is DocumentType.CUSTOMS_DECLARATION and _MRN_RE.search(text or ""):
+            score += 4
+        if score > best_score:
+            best_type, best_score = doc_type, score
+    if best_score >= _SECONDARY_MIN:
+        return best_type
+
+    if any(k in t for k in _INVOICE_KEYWORDS):
+        return DocumentType.INVOICE
     return DocumentType.OTHER
 
 
 def detect_direction(text: str, hint: str = "") -> Direction:
     t = f"{text or ''} {hint or ''}".lower()
+    # Strong import/export markers (customs) outrank the generic продажба/покупка words.
+    if "допускане за свободно обращение" in t or "import of non-union" in t:
+        return Direction.PURCHASE
+    if "декларация за износ" in t or "export declaration" in t:
+        return Direction.SALE
     if any(k in t for k in _SALE_HINTS):
         return Direction.SALE
     if any(k in t for k in _PURCHASE_HINTS):

@@ -13,23 +13,39 @@ from app.core import get_settings
 from app.rag.base import RetrievedChunk
 
 
+def resolve_llm() -> tuple[str, str, str]:
+    """Pick the model the chat actually uses: (model, api_base, api_key).
+
+    A configured hosted model wins; otherwise fall back to the containerized/local
+    model (Ollama Mistral) so the app has an LLM without an API key. Returns an empty
+    model when nothing is available, which routes the chat to the echo stub.
+    """
+    s = get_settings()
+    if s.llm_model:
+        return s.llm_model, s.llm_api_base, s.llm_api_key
+    if s.llm_fallback_enabled and s.llm_fallback_model:
+        return s.llm_fallback_model, s.llm_fallback_api_base, ""
+    return "", "", ""
+
+
 def litellm_complete(messages: list[dict], tools: list[dict]) -> dict:
     """Default `complete` callable for the tool loop. Normalizes a LiteLLM
     completion into {"content", "tool_calls"} (OpenAI/LiteLLM shape)."""
     import litellm
 
     s = get_settings()
+    model, api_base, api_key = resolve_llm()
     kwargs: dict = {
-        "model": s.llm_model,
+        "model": model,
         "messages": messages,
         "tools": tools,
         "temperature": s.llm_temperature,
         "timeout": s.llm_timeout,
     }
-    if s.llm_api_base:
-        kwargs["api_base"] = s.llm_api_base
-    if s.llm_api_key:
-        kwargs["api_key"] = s.llm_api_key
+    if api_base:
+        kwargs["api_base"] = api_base
+    if api_key:
+        kwargs["api_key"] = api_key
     resp = litellm.completion(**kwargs)
     msg = resp["choices"][0]["message"]
     content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", None)

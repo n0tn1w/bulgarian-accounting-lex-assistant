@@ -16,6 +16,8 @@ export interface Party {
   vat_number?: string | null;
   eik?: string | null;
   address?: string | null;
+  source?: string;            // extracted | register | merged | vision
+  recovered_fields?: string[]; // fields filled/corrected from the register
 }
 
 export interface LineItem {
@@ -34,6 +36,9 @@ export interface TaxLine {
 export interface Invoice {
   id: string;
   source: string;
+  doc_type?: string;          // invoice | credit_note | fiscal_receipt | bank_statement | ...
+  direction?: string;         // sale | purchase | unknown
+  reverse_charge?: boolean;
   number?: string | null;
   date?: string | null;
   currency: string;
@@ -47,7 +52,44 @@ export interface Invoice {
   field_confidence: Record<string, number>;
   company_key?: string | null;
   company_name?: string | null;
+  perspective?: string;          // supplier | recipient | auto
+  extra?: Record<string, string>; // type-specific fields (IBAN, fiscal device, MRN, ...)
 }
+
+const KNOWN_DOC_TYPES = [
+  'invoice', 'credit_note', 'debit_note', 'proforma', 'simplified_invoice', 'protocol',
+  'fiscal_receipt', 'customs_declaration', 'bank_statement', 'goods_receipt',
+  'expense_report', 'other',
+];
+
+/** i18n key for a document type label (translate in the template via the `t` pipe). */
+export function docTypeLabel(t?: string | null): string {
+  return t && KNOWN_DOC_TYPES.includes(t) ? `docType.${t}` : 'docType.other';
+}
+
+/** i18n key for an `extra` field label, falling back to the raw key for unknown extras. */
+export function extraLabelKey(key: string): string {
+  return `extra.${key}`;
+}
+
+/** Document types that carry monetary totals (so arithmetic validation applies). */
+export function docHasAmounts(t?: string | null): boolean {
+  return !['bank_statement', 'customs_declaration', 'goods_receipt', 'other'].includes(t ?? 'invoice');
+}
+
+export interface CompanyInfo {
+  eik: string;
+  name?: string | null;
+  vat_number?: string | null;
+  status?: string | null;
+  country?: string | null;
+  city?: string | null;
+  zip_code?: string | null;
+  address_line1?: string | null;
+  manager?: string | null;
+  source?: string;
+}
+export interface CompanyLookupResponse { company: CompanyInfo; }
 
 export interface Company {
   key: string;

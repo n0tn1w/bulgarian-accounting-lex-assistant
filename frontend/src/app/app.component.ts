@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, effect, inject, signal } from '@angular/core';
 
 import { AuthService } from './core/auth.service';
+import { I18nService } from './core/i18n/i18n.service';
+import { TranslatePipe } from './core/i18n/translate.pipe';
 import { WorkspaceStore } from './core/workspace.store';
 import { AuthComponent } from './features/auth/auth.component';
 import { ChatComponent } from './features/chat/chat.component';
@@ -22,13 +24,14 @@ import { IconComponent } from './ui/icon.component';
     SearchComponent,
     InspectorComponent,
     IconComponent,
+    TranslatePipe,
   ],
   templateUrl: './app.component.html',
 })
 export class AppComponent {
   readonly auth = inject(AuthService);
   readonly store = inject(WorkspaceStore);
-  locale = signal<'bg' | 'en'>('bg');
+  readonly i18n = inject(I18nService);
   private loaded = false;
 
   constructor() {
@@ -70,13 +73,20 @@ export class AppComponent {
     this.auth.logout();
   }
 
-  title(): string {
+  /** i18n key for the current pane title (translated in the template). */
+  titleKey(): string {
     switch (this.store.view()) {
-      case 'documents': return 'Documents';
-      case 'search': return 'Search';
-      case 'laws': return 'VAT & laws';
-      default: return 'Assistant';
+      case 'documents': return 'app.pane.documents';
+      case 'search': return 'app.pane.search';
+      case 'laws': return 'app.pane.laws';
+      default: return 'app.pane.assistant';
     }
+  }
+
+  /** i18n key for the backend health line. */
+  statusKey(): string {
+    const h = this.store.health();
+    return h === 'up' ? 'app.status.up' : h === 'down' ? 'app.status.down' : 'app.status.checking';
   }
 
   openFile(): void {

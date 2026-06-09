@@ -16,51 +16,54 @@
       </div>
 
       <button class="rail-new" (click)="store.newConversation()">
-        <app-icon name="plus" [size]="16" /> <span>New chat</span>
+        <app-icon name="plus" [size]="16" /> <span>{{ 'app.nav.newChat' | t }}</span>
       </button>
 
-      <div class="nav-label">Conversations</div>
+      <div class="nav-label">{{ 'app.nav.conversations' | t }}</div>
       <div class="convo-list">
         @for (c of store.recentConversations(); track c.id) {
           <div class="convo" [class.active]="c.id === store.activeId() && store.view() === 'assistant'"
                (click)="store.selectConversation(c.id)">
             <app-icon class="ico" name="chat" [size]="15" />
-            <span class="convo-title">{{ c.title }}</span>
-            <button class="convo-del" title="Delete chat" (click)="askDelete(c.id, $event)">
+            <span class="convo-title">{{ c.title || ('app.nav.newChat' | t) }}</span>
+            <button class="convo-del" [title]="'app.action.deleteChat' | t" (click)="askDelete(c.id, $event)">
               <app-icon name="x" [size]="12" />
             </button>
           </div>
         }
         @if (store.hasMoreConversations()) {
           <button class="show-more" (click)="openAllChats()">
-            <app-icon name="chat" [size]="14" /> <span>Show all ({{ store.conversations().length }})</span>
+            <app-icon name="chat" [size]="14" /> <span>{{ 'app.nav.showAll' | t: { count: store.conversations().length } }}</span>
           </button>
         }
       </div>
 
-      <div class="nav-label">Workspace</div>
+      <div class="nav-label">{{ 'app.nav.workspace' | t }}</div>
       <div class="nav-item" [class.active]="store.view() === 'documents'" (click)="store.setView('documents')">
-        <app-icon class="ico" name="doc" [size]="18" /><span>Documents</span>
+        <app-icon class="ico" name="doc" [size]="18" /><span>{{ 'app.nav.documents' | t }}</span>
         <span class="count">{{ store.invoiceCount() }}</span></div>
       <div class="nav-item" [class.active]="store.view() === 'search'" (click)="store.setView('search')">
-        <app-icon class="ico" name="search" [size]="18" /><span>Search</span></div>
+        <app-icon class="ico" name="search" [size]="18" /><span>{{ 'app.nav.search' | t }}</span></div>
       <div class="nav-item" [class.active]="store.view() === 'laws'" (click)="store.setView('laws')">
-        <app-icon class="ico" name="shield" [size]="18" /><span>VAT &amp; laws (RAG)</span></div>
+        <app-icon class="ico" name="shield" [size]="18" /><span>{{ 'app.nav.laws' | t }}</span></div>
 
       <div class="rail-foot">
+        <div class="locale">
+          <button [class.on]="i18n.lang() === 'bg'" (click)="i18n.setLang('bg')">BG</button>
+          <button [class.on]="i18n.lang() === 'en'" (click)="i18n.setLang('en')">EN</button>
+        </div>
         <div class="user-chip">
           <span class="uava">{{ (auth.user()?.email || '?').charAt(0).toUpperCase() }}</span>
           <span class="uemail">{{ auth.user()?.email }}</span>
           <button class="icon-btn" style="width:28px;height:28px;border-radius:8px;border-color:rgba(244,231,211,.2);background:transparent;color:rgba(244,231,211,.7)"
-                  title="Sign out" (click)="logout()"><app-icon name="x" [size]="14" /></button>
+                  [title]="'app.action.signOut' | t" (click)="logout()"><app-icon name="x" [size]="14" /></button>
         </div>
         <div class="status">
           <span class="dot"
             [class.up]="store.health() === 'up'"
             [class.down]="store.health() === 'down'"
             [class.wait]="store.health() === 'checking'"></span>
-          <span>{{ store.health() === 'up' ? 'Backend connected'
-                  : store.health() === 'down' ? 'Backend offline' : 'Connecting…' }}</span>
+          <span>{{ statusKey() | t }}</span>
         </div>
       </div>
     </aside>
@@ -68,7 +71,7 @@
     <!-- center pane -->
     <main class="pane">
       <header class="pane-head">
-        <span class="pane-title">{{ title() }}</span>
+        <span class="pane-title">{{ titleKey() | t }}</span>
 
         @if (store.view() === 'assistant') {
           @if (store.activeInvoice(); as inv) {
@@ -77,14 +80,13 @@
           }
           @if (store.hasConversation()) {
             <button class="btn ghost" style="margin-left:auto" (click)="store.reset()">
-              <app-icon name="plus" [size]="15" /> New
+              <app-icon name="plus" [size]="15" /> {{ 'app.action.new' | t }}
             </button>
           }
         } @else if (store.view() === 'documents') {
-          <span class="chip"><span class="mono">{{ store.invoiceCount() }}</span> invoices ·
-            <span class="mono">{{ store.companyCount() }}</span> companies</span>
+          <span class="chip">{{ 'app.pane.docsMeta' | t: { inv: store.invoiceCount(), comp: store.companyCount() } }}</span>
           <button class="btn primary" style="margin-left:auto" (click)="openFile()">
-            <app-icon name="plus" [size]="15" /> Add documents
+            <app-icon name="plus" [size]="15" /> {{ 'app.action.addDocuments' | t }}
           </button>
         }
       </header>
@@ -108,8 +110,8 @@
     <div class="modal-backdrop" (click)="closeAllChats()">
       <div class="modal" (click)="$event.stopPropagation()">
         <div class="modal-head">
-          <span class="t">All conversations</span>
-          <span class="faint" style="margin-left:auto; font-size:13px">{{ store.conversations().length }} total</span>
+          <span class="t">{{ 'app.modal.allConversations' | t }}</span>
+          <span class="faint" style="margin-left:auto; font-size:13px">{{ 'app.modal.total' | t: { count: store.conversations().length } }}</span>
           <button class="icon-btn" style="margin-left:12px" (click)="closeAllChats()"><app-icon name="x" [size]="16" /></button>
         </div>
         <div class="modal-body">
@@ -117,10 +119,10 @@
             <div class="modal-row" [class.active]="c.id === store.activeId()" (click)="pickConversation(c.id)">
               <app-icon name="chat" [size]="16" />
               <div class="mr-main">
-                <div class="mr-title">{{ c.title }}</div>
-                <div class="mr-meta">{{ c.messages.length }} messages · {{ convDate(c.updatedAt) }}</div>
+                <div class="mr-title">{{ c.title || ('app.nav.newChat' | t) }}</div>
+                <div class="mr-meta">{{ 'app.convo.messages' | t: { count: c.messages.length, date: convDate(c.updatedAt) } }}</div>
               </div>
-              <button class="icon-btn danger" title="Delete" (click)="askDelete(c.id, $event)">
+              <button class="icon-btn danger" [title]="'app.confirm.delete' | t" (click)="askDelete(c.id, $event)">
                 <app-icon name="x" [size]="14" />
               </button>
             </div>
@@ -134,11 +136,11 @@
   @if (confirmDeleteId()) {
     <div class="modal-backdrop confirm-layer" (click)="cancelDelete()">
       <div class="confirm" (click)="$event.stopPropagation()">
-        <div class="confirm-t">Delete this conversation?</div>
-        <div class="confirm-d">This permanently removes the chat and its messages. It can’t be undone.</div>
+        <div class="confirm-t">{{ 'app.confirm.deleteTitle' | t }}</div>
+        <div class="confirm-d">{{ 'app.confirm.deleteBody' | t }}</div>
         <div class="confirm-actions">
-          <button class="btn ghost" (click)="cancelDelete()">Cancel</button>
-          <button class="btn danger" (click)="confirmDelete()">Delete</button>
+          <button class="btn ghost" (click)="cancelDelete()">{{ 'app.confirm.cancel' | t }}</button>
+          <button class="btn danger" (click)="confirmDelete()">{{ 'app.confirm.delete' | t }}</button>
         </div>
       </div>
     </div>

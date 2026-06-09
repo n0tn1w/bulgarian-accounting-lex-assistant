@@ -1,53 +1,149 @@
 @switch (card.type) {
 
-  <!-- invoice -->
+  <!-- document (rendered per type) -->
   @case ('invoice') {
+    @let inv = card.invoice;
     <div class="card doc">
       <div class="card-head">
         <app-icon name="doc" [size]="17" />
-        <span class="t">Invoice <small>{{ card.invoice.number || card.invoice.id }}</small></span>
-        <span class="right"><span class="chip"><span class="mono">{{ card.invoice.source }}</span></span></span>
+        <span class="t">{{ docLabel(inv.doc_type) | t }} <small>{{ inv.number || inv.id }}</small></span>
+        <span class="right">
+          @if (inv.reverse_charge) { <span class="badge warning">{{ 'badge.reverseCharge' | t }}</span> }
+          <span class="chip"><span class="mono">{{ inv.source }}</span></span>
+        </span>
       </div>
       <div class="card-body">
-        <div class="doc-grid">
-          <div class="kv">
-            <span class="k">Number</span>
-            <span class="v mono">{{ card.invoice.number || '—' }}</span>
-            @if (conf(card.invoice, 'number'); as c) { <app-meter [value]="c" /> }
-          </div>
-          <div class="kv">
-            <span class="k">Date</span>
-            <span class="v mono">{{ card.invoice.date || '—' }}</span>
-            @if (conf(card.invoice, 'date'); as c) { <app-meter [value]="c" /> }
-          </div>
-          <div class="kv">
-            <span class="k">Supplier</span>
-            <span class="v">{{ card.invoice.supplier.name || '—' }}</span>
-            @if (conf(card.invoice, 'supplier_name'); as c) { <app-meter [value]="c" /> }
-          </div>
-          <div class="kv">
-            <span class="k">Recipient</span>
-            <span class="v">{{ card.invoice.recipient.name || '—' }}</span>
-            @if (conf(card.invoice, 'recipient_name'); as c) { <app-meter [value]="c" /> }
-          </div>
-          <div class="kv">
-            <span class="k">Supplier VAT / EIK</span>
-            <span class="v mono">{{ card.invoice.supplier.vat_number || card.invoice.supplier.eik || '—' }}</span>
-          </div>
-          <div class="kv">
-            <span class="k">Recipient VAT</span>
-            <span class="v mono">{{ card.invoice.recipient.vat_number || '—' }}</span>
-          </div>
-        </div>
+        @switch (effectiveDocType(inv)) {
 
-        <div style="margin-top:14px">
-          <div class="amt-row"><span class="lbl">Net</span>
-            <span class="num">{{ card.invoice.net_amount | money: card.invoice.currency }}</span></div>
-          <div class="amt-row"><span class="lbl">VAT</span>
-            <span class="num">{{ card.invoice.vat_amount | money: card.invoice.currency }}</span></div>
-          <div class="amt-row total"><span class="lbl">Total</span>
-            <span class="num">{{ card.invoice.total_amount | money: card.invoice.currency }}</span></div>
-        </div>
+          @case ('customs') {
+            <div class="doc-grid">
+              <div class="kv"><span class="k">{{ 'field.mrn' | t }}</span>
+                <span class="v mono">{{ inv.number || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.date' | t }}</span>
+                <span class="v mono">{{ inv.date || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.exporter' | t }}</span>
+                <span class="v">{{ inv.supplier.name || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.importer' | t }}</span>
+                <span class="v">{{ inv.recipient.name || '—' }}
+                  @if (inv.recipient.source === 'merged' || inv.recipient.source === 'register') {
+                    <span class="badge info">{{ 'badge.register' | t }}</span>
+                  }</span></div>
+              <div class="kv span2"><span class="k">{{ 'field.importer' | t }} · {{ 'field.recipientVatEik' | t }}</span>
+                <span class="v mono">{{ inv.recipient.vat_number || inv.recipient.eik || '—' }}</span></div>
+            </div>
+            @if (ex(inv, 'customs_value') || ex(inv, 'vat')) {
+              <div style="margin-top:14px">
+                @if (ex(inv, 'customs_value'); as cv) {
+                  <div class="amt-row"><span class="lbl">{{ 'field.customsValue' | t }}</span>
+                    <span class="num mono">{{ cv }} {{ inv.currency }}</span></div>
+                }
+                @if (ex(inv, 'vat'); as v) {
+                  <div class="amt-row total"><span class="lbl">{{ 'field.vat' | t }}</span>
+                    <span class="num mono">{{ v }} {{ inv.currency }}</span></div>
+                }
+              </div>
+            }
+          }
+
+          @case ('bank') {
+            <div class="doc-grid">
+              <div class="kv span2"><span class="k">{{ 'field.iban' | t }}</span>
+                <span class="v mono">{{ ex(inv, 'iban') || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.supplier' | t }}</span>
+                <span class="v">{{ inv.supplier.name || inv.recipient.name || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.period' | t }}</span>
+                <span class="v mono">{{ ex(inv, 'period') || '—' }}</span></div>
+            </div>
+            <div style="margin-top:14px">
+              <div class="amt-row"><span class="lbl">{{ 'field.openingBalance' | t }}</span>
+                <span class="num mono">{{ ex(inv, 'opening_balance') || '—' }}</span></div>
+              <div class="amt-row total"><span class="lbl">{{ 'field.closingBalance' | t }}</span>
+                <span class="num mono">{{ ex(inv, 'closing_balance') || '—' }}</span></div>
+            </div>
+          }
+
+          @case ('fiscal') {
+            <div class="doc-grid">
+              <div class="kv"><span class="k">{{ 'field.supplier' | t }}</span>
+                <span class="v">{{ inv.supplier.name || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.date' | t }}</span>
+                <span class="v mono">{{ inv.date || '—' }}</span></div>
+              <div class="kv span2"><span class="k">{{ 'field.fiscalDevice' | t }}</span>
+                <span class="v mono">{{ ex(inv, 'fiscal_device') || '—' }}</span></div>
+            </div>
+            <div style="margin-top:14px">
+              <div class="amt-row"><span class="lbl">{{ 'field.vat' | t }}</span>
+                <span class="num">{{ inv.vat_amount | money: inv.currency }}</span></div>
+              <div class="amt-row total"><span class="lbl">{{ 'field.total' | t }}</span>
+                <span class="num">{{ inv.total_amount | money: inv.currency }}</span></div>
+            </div>
+          }
+
+          @case ('invoice') {
+            <div class="doc-grid">
+              <div class="kv">
+                <span class="k">{{ 'field.number' | t }}</span>
+                <span class="v mono">{{ inv.number || '—' }}</span>
+                @if (conf(inv, 'number'); as c) { <app-meter [value]="c" /> }
+              </div>
+              <div class="kv">
+                <span class="k">{{ 'field.date' | t }}</span>
+                <span class="v mono">{{ inv.date || '—' }}</span>
+                @if (conf(inv, 'date'); as c) { <app-meter [value]="c" /> }
+              </div>
+              <div class="kv">
+                <span class="k">{{ 'field.supplier' | t }}</span>
+                <span class="v">{{ inv.supplier.name || '—' }}
+                  @if (inv.supplier.source === 'merged' || inv.supplier.source === 'register') {
+                    <span class="badge info">{{ 'badge.register' | t }}</span>
+                  }</span>
+                @if (conf(inv, 'supplier_name'); as c) { <app-meter [value]="c" /> }
+              </div>
+              <div class="kv">
+                <span class="k">{{ 'field.recipient' | t }}</span>
+                <span class="v">{{ inv.recipient.name || '—' }}
+                  @if (inv.recipient.source === 'merged' || inv.recipient.source === 'register') {
+                    <span class="badge info">{{ 'badge.register' | t }}</span>
+                  }</span>
+                @if (conf(inv, 'recipient_name'); as c) { <app-meter [value]="c" /> }
+              </div>
+              <div class="kv">
+                <span class="k">{{ 'field.supplierVatEik' | t }}</span>
+                <span class="v mono">{{ inv.supplier.vat_number || inv.supplier.eik || '—' }}</span>
+              </div>
+              <div class="kv">
+                <span class="k">{{ 'field.recipientVat' | t }}</span>
+                <span class="v mono">{{ inv.recipient.vat_number || inv.recipient.eik || '—' }}</span>
+              </div>
+            </div>
+
+            <div style="margin-top:14px">
+              <div class="amt-row"><span class="lbl">{{ 'field.net' | t }}</span>
+                <span class="num">{{ inv.net_amount | money: inv.currency }}</span></div>
+              <div class="amt-row"><span class="lbl">{{ 'field.vat' | t }}</span>
+                <span class="num">{{ inv.vat_amount | money: inv.currency }}</span></div>
+              <div class="amt-row total"><span class="lbl">{{ 'field.total' | t }}</span>
+                <span class="num">{{ inv.total_amount | money: inv.currency }}</span></div>
+            </div>
+          }
+
+          @default {
+            <div class="doc-grid">
+              <div class="kv"><span class="k">{{ 'field.number' | t }}</span>
+                <span class="v mono">{{ inv.number || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.date' | t }}</span>
+                <span class="v mono">{{ inv.date || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.supplier' | t }}</span>
+                <span class="v">{{ inv.supplier.name || '—' }}</span></div>
+              <div class="kv"><span class="k">{{ 'field.recipient' | t }}</span>
+                <span class="v">{{ inv.recipient.name || '—' }}</span></div>
+              @for (e of extras(inv); track e[0]) {
+                <div class="kv span2"><span class="k">{{ extraKey(e[0]) | t }}</span>
+                  <span class="v mono">{{ e[1] }}</span></div>
+              }
+            </div>
+          }
+        }
       </div>
     </div>
   }
@@ -57,10 +153,10 @@
     <div class="card">
       <div class="card-head">
         <app-icon [name]="card.isValid ? 'check' : 'alert'" [size]="17" />
-        <span class="t">Validation</span>
+        <span class="t">{{ 'card.validation.title' | t }}</span>
         <span class="right">
           <span class="badge" [class.ok]="card.isValid" [class.error]="!card.isValid">
-            {{ card.isValid ? 'Valid' : 'Issues found' }}
+            {{ (card.isValid ? 'card.validation.valid' : 'card.validation.issues') | t }}
           </span>
         </span>
       </div>
@@ -72,7 +168,7 @@
               <div class="rmsg">{{ r.message }}</div>
               <div class="rid">{{ r.rule_id }}</div>
             </div>
-            <span class="badge" [class]="badgeClass(r.passed, r.severity)">{{ r.passed ? 'pass' : r.severity }}</span>
+            <span class="badge" [class]="badgeClass(r.passed, r.severity)">{{ r.passed ? ('card.validation.pass' | t) : r.severity }}</span>
           </div>
         }
       </div>
@@ -84,7 +180,7 @@
     <div class="card">
       <div class="card-head">
         <app-icon name="scale" [size]="17" />
-        <span class="t">Duplicate scan <small>vs {{ card.queryId }}</small></span>
+        <span class="t">{{ 'card.duplicates.title' | t }} <small>{{ 'card.duplicates.vs' | t: { id: card.queryId } }}</small></span>
       </div>
       <div class="card-body">
         @for (m of card.matches; track m.candidate_id) {
@@ -101,10 +197,10 @@
             </span>
             <div style="min-width:0">
               <div class="who">{{ m.candidate_id }}</div>
-              <div class="ev">word {{ pct(m.evidence.word_similarity) }}% · char {{ pct(m.evidence.char_similarity) }}%</div>
+              <div class="ev">{{ 'card.duplicates.word' | t }} {{ pct(m.evidence.word_similarity) }}% · {{ 'card.duplicates.char' | t }} {{ pct(m.evidence.char_similarity) }}%</div>
             </div>
             <span class="tag badge" [class.error]="m.is_duplicate" [class.info]="!m.is_duplicate">
-              {{ m.is_duplicate ? 'duplicate' : 'distinct' }}
+              {{ (m.is_duplicate ? 'card.duplicates.duplicate' : 'card.duplicates.distinct') | t }}
             </span>
           </div>
         }
@@ -117,7 +213,7 @@
     <div class="card">
       <div class="card-head">
         <app-icon name="ledger" [size]="17" />
-        <span class="t">Companies <small>{{ card.groups.length }} in working set</small></span>
+        <span class="t">{{ 'card.companies.title' | t }} <small>{{ 'card.companies.inWorkingSet' | t: { count: card.groups.length } }}</small></span>
       </div>
       <div class="card-body">
         <div class="doclist">
@@ -125,10 +221,10 @@
             <div class="company-pill">
               <span class="cmark">{{ (g.company.name || '?').charAt(0) }}</span>
               <div style="min-width:0; flex:1">
-                <div class="cname">{{ g.company.name || 'Unknown company' }}</div>
+                <div class="cname">{{ g.company.name || ('docs.company.unknown' | t) }}</div>
                 <div class="cmeta mono">{{ g.company.vat || g.company.eik || g.company.key }}</div>
               </div>
-              <span class="badge info">{{ g.company.invoice_count }} inv</span>
+              <span class="badge info">{{ g.company.invoice_count }}</span>
             </div>
           }
         </div>
@@ -141,7 +237,7 @@
     <div class="card">
       <div class="card-head">
         <app-icon name="shield" [size]="16" />
-        <span class="t">Sources <small>{{ card.citations.length }} · {{ card.model }}</small></span>
+        <span class="t">{{ 'card.sources.title' | t }} <small>{{ card.citations.length }} · {{ card.model }}</small></span>
       </div>
       <div class="card-body">
         <div class="src-list">
@@ -201,7 +297,7 @@
           <span class="amt">{{ v.total_amount | money: (v.currency ?? undefined) }}</span>
         </div>
       }
-      @if (!card.items.length) { <span class="faint">No matching invoices.</span> }
+      @if (!card.items.length) { <span class="faint">{{ 'card.invoices.none' | t }}</span> }
     </div>
   }
 }

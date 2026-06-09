@@ -4,11 +4,10 @@
   @if (store.invoiceCount() === 0) {
     <div class="empty">
       <div class="glyph"><app-icon name="doc" [size]="34" [weight]="1.6" /></div>
-      <h2>No <em>working sets</em> yet.</h2>
-      <p>Drop an XML batch or a PDF/text invoice. Every parsed invoice is organised
-         into a per-company working set, ready to validate and de-duplicate.</p>
+      <h2 [innerHTML]="'docs.empty.title' | t"></h2>
+      <p>{{ 'docs.empty.body' | t }}</p>
       <button class="btn primary" (click)="openFile()">
-        <app-icon name="plus" [size]="16" /> Add documents
+        <app-icon name="plus" [size]="16" /> {{ 'docs.empty.add' | t }}
       </button>
     </div>
   } @else {
@@ -17,10 +16,10 @@
         <div class="company-head">
           <span class="cmark lg">{{ (g.company.name || '?').charAt(0) }}</span>
           <div style="min-width:0">
-            <div class="cname lg">{{ g.company.name || 'Unknown company' }}</div>
+            <div class="cname lg">{{ g.company.name || ('docs.company.unknown' | t) }}</div>
             <div class="cmeta mono">{{ g.company.vat || g.company.eik || '—' }}</div>
           </div>
-          <span class="badge info" style="margin-left:auto">{{ g.company.invoice_count }} invoices</span>
+          <span class="badge info" style="margin-left:auto">{{ 'docs.company.invoices' | t: { count: g.company.invoice_count } }}</span>
         </div>
 
         <div class="inv-grid">
@@ -32,30 +31,37 @@
                 <span class="right" style="display:flex; gap:7px; align-items:center">
                   @if (avgConf(inv); as c) { <span class="chip" style="padding:2px 7px">{{ pct(c) }}</span> }
                   <button class="icon-btn" style="width:26px;height:26px;border-radius:7px"
-                          title="Remove" (click)="store.removeInvoice(inv.id)">
+                          [title]="'docs.cell.remove' | t" (click)="store.removeInvoice(inv.id)">
                     <app-icon name="x" [size]="13" />
                   </button>
                 </span>
               </div>
               <div class="card-body">
-                <div class="kv-row"><span class="kv-label">Date</span>
+                <div class="kv-row"><span class="kv-label">{{ 'docs.cell.date' | t }}</span>
                   <span class="kv-val mono">{{ inv.date || '—' }}</span></div>
-                <div class="kv-row"><span class="kv-label">Counterparty</span>
+                <div class="kv-row"><span class="kv-label">{{ 'docs.cell.counterparty' | t }}</span>
                   <span class="kv-val">{{ inv.recipient.name || inv.supplier.name || '—' }}</span></div>
-                <div class="amt-row"><span class="lbl">Net</span>
-                  <span class="num">{{ inv.net_amount | money: inv.currency }}</span></div>
-                <div class="amt-row"><span class="lbl">VAT</span>
-                  <span class="num">{{ inv.vat_amount | money: inv.currency }}</span></div>
-                <div class="amt-row total"><span class="lbl">Total</span>
-                  <span class="num">{{ inv.total_amount | money: inv.currency }}</span></div>
+                @if (hasAmounts(inv)) {
+                  <div class="amt-row"><span class="lbl">{{ 'field.net' | t }}</span>
+                    <span class="num">{{ inv.net_amount | money: inv.currency }}</span></div>
+                  <div class="amt-row"><span class="lbl">{{ 'field.vat' | t }}</span>
+                    <span class="num">{{ inv.vat_amount | money: inv.currency }}</span></div>
+                  <div class="amt-row total"><span class="lbl">{{ 'field.total' | t }}</span>
+                    <span class="num">{{ inv.total_amount | money: inv.currency }}</span></div>
+                } @else {
+                  @if (typeLine(inv); as tl) {
+                    <div class="kv-row"><span class="kv-label">{{ tl.labelKey | t }}</span>
+                      <span class="kv-val mono">{{ tl.value }}</span></div>
+                  }
+                }
               </div>
               <div class="doc-foot">
                 <button class="btn ghost" style="padding:6px 11px" (click)="store.validateInvoice(inv)"
-                        [disabled]="store.busy()"><app-icon name="check" [size]="14" /> Validate</button>
+                        [disabled]="store.busy()"><app-icon name="check" [size]="14" /> {{ 'docs.cell.validate' | t }}</button>
                 <button class="btn ghost" style="padding:6px 11px; margin-left:auto"
                         (click)="store.findDuplicatesForInvoice(inv)"
                         [disabled]="store.busy() || g.company.invoice_count < 2">
-                  <app-icon name="scale" [size]="14" /> Duplicates</button>
+                  <app-icon name="scale" [size]="14" /> {{ 'docs.cell.duplicates' | t }}</button>
               </div>
             </div>
           }

@@ -6,9 +6,8 @@ WORKDIR /build
 # pre-compiled, so only pip tooling is needed here).
 RUN pip install --upgrade pip
 
-COPY requirements.txt requirements-ocr.txt requirements-lex.txt .
-RUN pip install --no-cache-dir --prefix=/install \
-    -r requirements.txt -r requirements-ocr.txt -r requirements-lex.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
 FROM python:3.11-slim

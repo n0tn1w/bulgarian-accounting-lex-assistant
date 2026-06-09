@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { WorkspaceStore } from '../../core/workspace.store';
 import { CardViewComponent } from '../cards/card-view.component';
 import { IconComponent } from '../../ui/icon.component';
@@ -8,7 +9,7 @@ import { IconComponent } from '../../ui/icon.component';
   selector: 'app-search',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardViewComponent, IconComponent],
+  imports: [CardViewComponent, IconComponent, TranslatePipe],
   templateUrl: './search.component.html',
 })
 export class SearchComponent {

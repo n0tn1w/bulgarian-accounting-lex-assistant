@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { WorkspaceStore } from '../../core/workspace.store';
-import { Invoice } from '../../core/models';
+import { Invoice, docHasAmounts, extraLabelKey } from '../../core/models';
 import { IconComponent } from '../../ui/icon.component';
 import { MoneyPipe } from '../../ui/money.pipe';
 
@@ -9,7 +10,7 @@ import { MoneyPipe } from '../../ui/money.pipe';
   selector: 'app-documents',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, MoneyPipe],
+  imports: [IconComponent, MoneyPipe, TranslatePipe],
   templateUrl: './documents.component.html',
 })
 export class DocumentsComponent {
@@ -22,6 +23,15 @@ export class DocumentsComponent {
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   }
   pct(n: number | null): string { return n == null ? '' : `${Math.round(n * 100)}%`; }
+
+  hasAmounts(inv: Invoice): boolean { return docHasAmounts(inv.doc_type); }
+
+  /** One headline {labelKey,value} for documents without monetary totals (MRN/IBAN). */
+  typeLine(inv: Invoice): { labelKey: string; value: string } | null {
+    const e = inv.extra ?? {};
+    const key = e['mrn'] ? 'mrn' : e['iban'] ? 'iban' : null;
+    return key ? { labelKey: extraLabelKey(key), value: e[key] } : null;
+  }
 
   openFile(): void { this.fileEl()?.nativeElement.click(); }
   onFile(e: Event): void {

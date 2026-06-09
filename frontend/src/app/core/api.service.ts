@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import {
   ChatApiResponse,
+  CompanyLookupResponse,
   DocCandidate,
   DuplicatesResponse,
   ExtractXmlResponse,
@@ -41,14 +42,34 @@ export class ApiService {
     return this.http.post<ExtractXmlResponse>(`${this.base}/documents/extract-xml`, { xml, label });
   }
 
-  extractText(text: string, doc_id = 'invoice', source = 'manual'): Observable<InvoiceResponse> {
-    return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-text`, { text, doc_id, source });
+  extractText(text: string, doc_id = 'invoice', source = 'manual', perspective = 'auto'): Observable<InvoiceResponse> {
+    return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-text`, { text, doc_id, source, perspective });
   }
 
-  extractPdf(file: File): Observable<InvoiceResponse> {
+  extractPdf(file: File, perspective = 'auto'): Observable<InvoiceResponse> {
     const form = new FormData();
     form.append('file', file, file.name);
+    form.append('perspective', perspective);
     return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-pdf`, form);
+  }
+
+  /** Look up a counterparty in the commercial register by EIK. */
+  lookupCompany(eik: string): Observable<CompanyLookupResponse> {
+    return this.http.get<CompanyLookupResponse>(`${this.base}/documents/company/${encodeURIComponent(eik)}`);
+  }
+
+  /** Persist the original uploaded file for a document (tenant-scoped, auth required). */
+  uploadDocumentFile(externalId: string, file: File): Observable<{ id: string; size: number }> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.post<{ id: string; size: number }>(
+      `${this.base}/workspace/documents/${encodeURIComponent(externalId)}/file`, form);
+  }
+
+  /** Fetch the stored original file as a Blob (the auth interceptor adds the token). */
+  getDocumentFile(externalId: string): Observable<Blob> {
+    return this.http.get(`${this.base}/workspace/documents/${encodeURIComponent(externalId)}/file`,
+      { responseType: 'blob' });
   }
 
   validate(invoice: Invoice): Observable<ValidateResponse> {

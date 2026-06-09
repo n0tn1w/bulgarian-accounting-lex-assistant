@@ -5,9 +5,9 @@ retrieval with cross-encoder reranking. This adapter loads lex's RetrievalPipeli
 once and maps its results into the backend's RetrievedChunk so the /chat orchestrator
 can merge laws with the invoices RAG.
 
-lex needs its own dependencies (backend/requirements-lex.txt) and a built index
+lex needs the backend dependencies (requirements.txt) and a built index
 (`python lex/run_ingest.py`, which scrapes lex.bg and downloads the bge models). If
-either is missing the retriever logs once and returns nothing, so the app still runs
+the index is missing the retriever logs once and returns nothing, so the app still runs
 and /chat answers from the invoices RAG alone.
 """
 
@@ -50,7 +50,7 @@ def _get_pipeline():
         _pipeline = RetrievalPipeline()
     except Exception as exc:
         logger.warning(
-            "Laws RAG (lex) unavailable: %s. Install backend/requirements-lex.txt and "
+            "Laws RAG (lex) unavailable: %s. Install requirements.txt and "
             "build the index with `python lex/run_ingest.py`.",
             exc,
         )

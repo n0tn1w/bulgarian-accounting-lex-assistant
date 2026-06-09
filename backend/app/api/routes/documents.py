@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.api.schemas import (
+    CompanyLookupResponse,
     ExtractCsvRequest,
     ExtractCsvResponse,
     ExtractTextRequest,
@@ -13,13 +14,16 @@ from app.api.schemas import (
     InvoiceResponse,
 )
 from app.tools.ingest import (
-    extract_invoice_from_text,
-    extract_text_from_pdf_bytes,
+    extract_document,
+    extract_from_pdf_bytes,
     group_by_company,
     invoices_from_xml_content,
+    lookup_company,
+    lookup_status,
     ocr_status,
     parse_csv,
     parse_xml,
+    validate_eik,
 )
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -44,21 +48,40 @@ def extract_csv(req: ExtractCsvRequest) -> ExtractCsvResponse:
 
 @router.post("/extract-text", response_model=InvoiceResponse)
 def extract_text(req: ExtractTextRequest) -> InvoiceResponse:
-    """Extract structured invoice fields from raw text (e.g. pasted OCR output)."""
-    invoice = extract_invoice_from_text(req.text, req.doc_id, req.source)
+    """Extract structured fields from raw text (e.g. pasted OCR output), routing by
+    detected document type."""
+    invoice = extract_document(
+        req.text, req.doc_id, req.source, perspective=req.perspective
+    )
     return InvoiceResponse(invoice=invoice)
 
 
+@router.get("/company/{eik}", response_model=CompanyLookupResponse)
+def company_lookup(eik: str) -> CompanyLookupResponse:
+    """Look up a counterparty in the commercial register by EIK."""
+    if not validate_eik(eik):
+        raise HTTPException(status_code=400, detail="invalid EIK")
+    if not lookup_status().get("available"):
+        raise HTTPException(status_code=503, detail="company lookup not available")
+    info = lookup_company(eik)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"company {eik} not found")
+    return CompanyLookupResponse(company=info)
+
+
 @router.post("/extract-pdf", response_model=InvoiceResponse)
-async def extract_pdf(file: UploadFile = File(...)) -> InvoiceResponse:
-    """OCR a PDF (Bulgarian+English) and extract structured invoice fields."""
+async def extract_pdf(
+    file: UploadFile = File(...),
+    perspective: str = Form("auto"),
+) -> InvoiceResponse:
+    """OCR a PDF (Bulgarian+English), preprocess the pages, and extract structured
+    fields; a poor scan falls back to the vision model and the register."""
     if not ocr_status().get("available"):
         raise HTTPException(status_code=503, detail="OCR not available on this server")
     content = await file.read()
+    doc_id = (file.filename or "invoice").rsplit(".", 1)[0]
     try:
-        text = extract_text_from_pdf_bytes(content)
+        invoice = extract_from_pdf_bytes(content, doc_id, source="ocr", perspective=perspective)
     except Exception as exc:  # pragma: no cover - depends on OCR env
         raise HTTPException(status_code=422, detail=f"OCR failed: {exc}") from exc
-    doc_id = (file.filename or "invoice").rsplit(".", 1)[0]
-    invoice = extract_invoice_from_text(text, doc_id, source="ocr")
     return InvoiceResponse(invoice=invoice)

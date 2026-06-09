@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import Principal, get_principal, get_tenant_db
@@ -63,3 +64,38 @@ def search(req: SearchRequest, db: Session = Depends(get_tenant_db)) -> SearchRe
 @router.delete("/invoices/{external_id}")
 def delete_invoice(external_id: str, db: Session = Depends(get_tenant_db)) -> dict:
     return {"deleted": ws.delete_invoice(db, external_id)}
+
+
+_MAX_FILE_BYTES = 15_000_000
+
+
+@router.post("/documents/{external_id}/file")
+async def upload_document_file(
+    external_id: str,
+    file: UploadFile = File(...),
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_tenant_db),
+) -> dict:
+    """Store the original uploaded file for a document, so it can be previewed later."""
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="empty file")
+    if len(data) > _MAX_FILE_BYTES:
+        raise HTTPException(status_code=413, detail="file too large")
+    fid = ws.store_document_file(
+        db, principal.tenant_id, external_id, file.filename, file.content_type, data
+    )
+    return {"id": str(fid), "size": len(data)}
+
+
+@router.get("/documents/{external_id}/file")
+def get_document_file(external_id: str, db: Session = Depends(get_tenant_db)) -> Response:
+    """Return the original file for a document (tenant-scoped by RLS)."""
+    row = ws.get_document_file(db, external_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="file not found")
+    return Response(
+        content=row.data,
+        media_type=row.content_type or "application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{row.filename or external_id}"'},
+    )

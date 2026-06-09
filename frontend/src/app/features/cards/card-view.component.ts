@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { ChatCard } from '../../core/chat';
-import { Invoice } from '../../core/models';
+import { Invoice, docTypeLabel, extraLabelKey } from '../../core/models';
 import { IconComponent } from '../../ui/icon.component';
 import { MeterComponent } from '../../ui/meter.component';
 import { MoneyPipe } from '../../ui/money.pipe';
@@ -10,7 +11,7 @@ import { MoneyPipe } from '../../ui/money.pipe';
   selector: 'app-card-view',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent, MeterComponent, MoneyPipe],
+  imports: [IconComponent, MeterComponent, MoneyPipe, TranslatePipe],
   templateUrl: './card-view.component.html',
 })
 export class CardViewComponent {
@@ -18,6 +19,31 @@ export class CardViewComponent {
 
   /** Emits the invoice_id (UUID) when the user clicks a cited chip or invoice row. */
   @Output() openInvoice = new EventEmitter<string>();
+
+  /** i18n key for the document type label (Invoice, Customs declaration, ...). */
+  docLabel = docTypeLabel;
+  extraKey = extraLabelKey;
+
+  /** Which per-type layout to render for this document. */
+  effectiveDocType(inv: Invoice): 'customs' | 'bank' | 'fiscal' | 'invoice' | 'generic' {
+    switch (inv.doc_type) {
+      case 'customs_declaration': return 'customs';
+      case 'bank_statement': return 'bank';
+      case 'fiscal_receipt': return 'fiscal';
+      case 'goods_receipt':
+      case 'other': return 'generic';
+      default: return 'invoice'; // invoice / credit_note / debit_note / proforma / simplified / protocol / expense
+    }
+  }
+
+  /** Type-specific fields (IBAN, balances, MRN, ...) as [key, value] pairs. */
+  extras(inv: Invoice): [string, string][] {
+    return Object.entries(inv.extra ?? {});
+  }
+
+  ex(inv: Invoice, key: string): string | null {
+    return inv.extra?.[key] ?? null;
+  }
 
   /** Confidence for a field key, or null when not tracked / zero. */
   conf(inv: Invoice, key: string): number | null {

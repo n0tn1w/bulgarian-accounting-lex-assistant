@@ -2,9 +2,10 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from './api.service';
+import { I18nService } from './i18n/i18n.service';
 import { AssistantTurn, ChatCard, ConvoContext } from './chat';
 import { groupInvoices } from './grouping';
-import { DocCandidate, Invoice, TextUnit } from './models';
+import { DocCandidate, Invoice, TextUnit, docHasAmounts, docTypeLabel, extraLabelKey } from './models';
 
 // Client-side conversation handling: routes the user's intent to the backend
 // tools (extract/validate/duplicates) and composes a grounded reply. Collapses
@@ -12,6 +13,8 @@ import { DocCandidate, Invoice, TextUnit } from './models';
 @Injectable({ providedIn: 'root' })
 export class AssistantService {
   private api = inject(ApiService);
+  private i18n = inject(I18nService);
+  private t = (k: string, p?: Record<string, string | number>) => this.i18n.t(k, p);
 
   async handleText(input: string, ctx: ConvoContext): Promise<AssistantTurn> {
     const text = input.trim();
@@ -22,14 +25,14 @@ export class AssistantService {
 
     if (/\b(validate|check|verify|провер)/.test(lower)) {
       if (!ctx.activeInvoice) {
-        return this.note('Add an invoice first — paste its text, or drop an XML/PDF — then I can validate it.');
+        return this.note(this.t('assistant.note.addInvoiceValidate'));
       }
       return this.runValidation(ctx.activeInvoice);
     }
 
     if (/\b(duplicate|dupe|dedup|дубли)/.test(lower)) {
       if (!ctx.activeInvoice) {
-        return this.note('Add an invoice first, then I can search its company for duplicates.');
+        return this.note(this.t('assistant.note.addInvoiceDuplicates'));
       }
       return this.duplicatesForInvoice(ctx.activeInvoice, ctx);
     }
@@ -58,7 +61,7 @@ export class AssistantService {
           : [];
       return { text: res.reply, cards };
     } catch {
-      return this.note('I could not reach the assistant model just now. Try again in a moment.', 'warn');
+      return this.note(this.t('assistant.note.modelUnreachable'), 'warn');
     }
   }
 
@@ -70,35 +73,26 @@ export class AssistantService {
     if (name.endsWith('.pdf') || file.type === 'application/pdf') {
       try {
         const res = await firstValueFrom(this.api.extractPdf(file));
-        return this.afterExtract(res.invoice, `Read **${file.name}** via OCR.`);
+        return this.afterExtract(res.invoice, this.t('assistant.read', { name: file.name }));
       } catch (e: any) {
         if (e?.status === 503) {
-          return this.note(
-            'OCR is not enabled on the server yet (Tesseract not installed). ' +
-              'You can still paste the invoice text and I will extract the fields.',
-            'warn',
-          );
+          return this.note(this.t('assistant.note.ocrDisabled'), 'warn');
         }
-        return this.note(`Could not read that PDF: ${e?.message ?? e}`, 'warn');
+        return this.note(this.t('assistant.note.pdfError', { error: e?.message ?? e }), 'warn');
       }
     }
     if (name.endsWith('.txt') || file.type.startsWith('text/')) return this.ingestText(await file.text());
-    return this.note(`I can read XML, PDF and text files — "${file.name}" is not supported yet.`, 'warn');
+    return this.note(this.t('assistant.note.unsupported', { name: file.name }), 'warn');
   }
 
   private async ingestXml(xml: string, label = 'upload'): Promise<AssistantTurn> {
     const res = await firstValueFrom(this.api.extractXml(xml, label));
     const invoices = res.invoices;
     if (!invoices.length) {
-      return this.note('I parsed the XML but found no record-like elements in it.', 'warn');
+      return this.note(this.t('assistant.note.xmlNoRecords'), 'warn');
     }
-    const n = invoices.length;
-    const m = res.groups.length;
     return {
-      text:
-        `Parsed **${n}** invoice${n > 1 ? 's' : ''} across **${m}** ` +
-        `compan${m > 1 ? 'ies' : 'y'} and organised them into per-company working sets. ` +
-        `Open the **Documents** tab to browse, or ask me to **find duplicates**.`,
+      text: this.t('assistant.parsedXml', { n: invoices.length, m: res.groups.length }),
       cards: [{ type: 'companies', groups: res.groups }],
       addInvoices: invoices,
     };
@@ -106,31 +100,31 @@ export class AssistantService {
 
   private async ingestText(text: string): Promise<AssistantTurn> {
     const res = await firstValueFrom(this.api.extractText(text, this.makeId('inv')));
-    return this.afterExtract(res.invoice, 'Extracted the invoice fields.');
+    return this.afterExtract(res.invoice, this.t('assistant.extracted'));
   }
 
   private async afterExtract(invoice: Invoice, lead: string): Promise<AssistantTurn> {
-    const v = await firstValueFrom(this.api.validate(invoice));
-    const failed = v.results.filter((r) => !r.passed);
-    const low = Object.entries(invoice.field_confidence)
-      .filter(([, c]) => c > 0 && c < 0.7)
-      .map(([f]) => f);
+    const cards: ChatCard[] = [{ type: 'invoice', invoice }];
+    const type = this.t(docTypeLabel(invoice.doc_type));
+    let summary = lead + this.t('assistant.docFor', { type, company: invoice.company_name || '—' });
 
-    let summary = `${lead} Company: **${invoice.company_name || 'unknown'}**. `;
-    summary += v.is_valid
-      ? 'It **passes** all blocking checks.'
-      : `I found **${failed.length}** issue${failed.length > 1 ? 's' : ''} to review.`;
-    if (low.length) summary += ` Low-confidence fields: ${low.join(', ')}.`;
+    if (docHasAmounts(invoice.doc_type)) {
+      const v = await firstValueFrom(this.api.validate(invoice));
+      const failed = v.results.filter((r) => !r.passed);
+      summary += v.is_valid ? this.t('assistant.passes') : this.t('assistant.issues', { count: failed.length });
+      const low = Object.entries(invoice.field_confidence)
+        .filter(([, c]) => c > 0 && c < 0.7)
+        .map(([f]) => f);
+      if (low.length) summary += this.t('assistant.lowConf', { fields: low.join(', ') });
+      cards.push({ type: 'validation', invoiceId: invoice.id, isValid: v.is_valid, results: v.results });
+    } else {
+      const extras = Object.entries(invoice.extra ?? {})
+        .slice(0, 3)
+        .map(([k, val]) => `${this.t(extraLabelKey(k))}: ${val}`);
+      if (extras.length) summary += ` ${extras.join(' · ')}.`;
+    }
 
-    return {
-      text: summary,
-      cards: [
-        { type: 'invoice', invoice },
-        { type: 'validation', invoiceId: invoice.id, isValid: v.is_valid, results: v.results },
-      ],
-      setActiveInvoice: invoice,
-      addInvoices: [invoice],
-    };
+    return { text: summary, cards, setActiveInvoice: invoice, addInvoices: [invoice] };
   }
 
   private async runValidation(invoice: Invoice): Promise<AssistantTurn> {
@@ -138,8 +132,8 @@ export class AssistantService {
     const failed = v.results.filter((r) => !r.passed).length;
     return {
       text: v.is_valid
-        ? `**${invoice.id}** passes all blocking checks.`
-        : `**${invoice.id}** has ${failed} issue${failed > 1 ? 's' : ''}:`,
+        ? this.t('assistant.validatePass', { id: invoice.id })
+        : this.t('assistant.validateIssues', { id: invoice.id, count: failed }),
       cards: [{ type: 'validation', invoiceId: invoice.id, isValid: v.is_valid, results: v.results }],
     };
   }
@@ -149,11 +143,9 @@ export class AssistantService {
     const sameCompany = ctx.workingSet.filter(
       (i) => i.id !== invoice.id && (i.company_key ?? 'unknown') === (invoice.company_key ?? 'unknown'),
     );
+    const company = invoice.company_name || '—';
     if (!sameCompany.length) {
-      return this.note(
-        `Nothing else from **${invoice.company_name || 'this company'}** to compare against yet. ` +
-          `Upload more of their invoices first.`,
-      );
+      return this.note(this.t('assistant.dupNothing', { company }));
     }
     const query = invoiceToDoc(invoice);
     const candidates = sameCompany.map(invoiceToDoc);
@@ -161,43 +153,28 @@ export class AssistantService {
     const dupes = res.matches.filter((m) => m.is_duplicate).length;
     return {
       text: dupes
-        ? `Found **${dupes}** likely duplicate${dupes > 1 ? 's' : ''} of **${invoice.id}** within **${invoice.company_name}**:`
-        : `No duplicates of **${invoice.id}** within **${invoice.company_name}**. Closest matches:`,
+        ? this.t('assistant.dupFound', { count: dupes, id: invoice.id, company })
+        : this.t('assistant.dupNone', { id: invoice.id, company }),
       cards: [{ type: 'duplicates', queryId: invoice.id, matches: res.matches }],
     };
   }
 
   private companiesOverview(ctx: ConvoContext): AssistantTurn {
     if (!ctx.workingSet.length) {
-      return this.note('No companies yet — upload an XML batch or some invoices first.');
+      return this.note(this.t('assistant.note.noCompanies'));
     }
     return {
-      text: 'Here are the companies in your working set:',
+      text: this.t('assistant.companiesOverview'),
       cards: [{ type: 'companies', groups: groupInvoices(ctx.workingSet) }],
     };
   }
 
   private help(): AssistantTurn {
-    return {
-      text:
-        'I work over your real documents. I can:\n' +
-        '• **Extract** invoice fields from text, XML or PDF (Bulgarian + English).\n' +
-        '• **Understand companies** and organise invoices into per-company working sets.\n' +
-        '• **Validate** an invoice — arithmetic, VAT rate, VAT/EIK format, completeness.\n' +
-        '• **Find duplicates** within a company.\n\n' +
-        'Paste an invoice or drop a file to begin.',
-      cards: [],
-    };
+    return { text: this.t('assistant.help'), cards: [] };
   }
 
   private fallback(): AssistantTurn {
-    return {
-      text:
-        "I'm grounded in your documents (full conversational reasoning arrives with the " +
-        'model layer). Try pasting an invoice, dropping an XML/PDF, or asking me to ' +
-        '**validate**, **find duplicates**, or show **companies**.',
-      cards: [],
-    };
+    return { text: this.t('assistant.fallback'), cards: [] };
   }
 
   private note(text: string, tone: 'info' | 'warn' = 'info'): AssistantTurn {

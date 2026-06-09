@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.domain import (
     CompanyGroup,
+    CompanyInfo,
     DocCandidate,
     DuplicateMatch,
     Invoice,
@@ -56,10 +57,17 @@ class ExtractTextRequest(BaseModel):
     text: str = Field(description="Raw invoice text (e.g. OCR output)")
     doc_id: str = "invoice"
     source: str = "manual"
+    # Which party the document is read from: "auto" infers from sale/purchase
+    # direction, "supplier"/"recipient" force the choice.
+    perspective: str = "auto"
 
 
 class InvoiceResponse(BaseModel):
     invoice: Invoice
+
+
+class CompanyLookupResponse(BaseModel):
+    company: CompanyInfo
 
 
 class ValidateResponse(BaseModel):

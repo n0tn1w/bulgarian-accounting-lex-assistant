@@ -8,12 +8,14 @@ import {
   viewChild,
 } from '@angular/core';
 
+import { I18nService } from '../../core/i18n/i18n.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { WorkspaceStore } from '../../core/workspace.store';
 import { CardViewComponent } from '../cards/card-view.component';
 import { FormatPipe } from '../../ui/format.pipe';
 import { IconComponent } from '../../ui/icon.component';
 
-interface Starter { icon: string; title: string; desc: string; action: () => void; }
+interface Starter { icon: string; titleKey: string; descKey: string; action: () => void; }
 
 const SAMPLE_INVOICE = `ФАКТУРА № 2000002487
 Дата: 15.03.2025
@@ -29,11 +31,12 @@ const SAMPLE_INVOICE = `ФАКТУРА № 2000002487
   selector: 'app-chat',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CardViewComponent, IconComponent, FormatPipe],
+  imports: [CardViewComponent, IconComponent, FormatPipe, TranslatePipe],
   templateUrl: './chat.component.html',
 })
 export class ChatComponent {
   readonly store = inject(WorkspaceStore);
+  private i18n = inject(I18nService);
 
   draft = signal('');
   focused = signal(false);
@@ -43,14 +46,14 @@ export class ChatComponent {
   private fileEl = viewChild<ElementRef<HTMLInputElement>>('file');
 
   starters: Starter[] = [
-    { icon: 'spark', title: 'Analyze a sample invoice', desc: 'Extract fields, score confidence and validate.',
+    { icon: 'spark', titleKey: 'chat.starter.sample.title', descKey: 'chat.starter.sample.desc',
       action: () => this.store.sendText(SAMPLE_INVOICE) },
-    { icon: 'check', title: 'Validate fields & VAT', desc: 'Arithmetic, VAT rate, VAT/EIK format, completeness.',
+    { icon: 'check', titleKey: 'chat.starter.validate.title', descKey: 'chat.starter.validate.desc',
       action: () => this.store.sendText('validate') },
-    { icon: 'scale', title: 'Detect duplicates', desc: 'Compare an invoice across an uploaded batch.',
+    { icon: 'scale', titleKey: 'chat.starter.duplicates.title', descKey: 'chat.starter.duplicates.desc',
       action: () => this.store.sendText('find duplicates') },
-    { icon: 'shield', title: 'Ask about VAT & law', desc: 'Grounded in Bulgarian legislation with citations.',
-      action: () => this.store.sendText('Каква е ставката на ДДС и в какъв срок се издава фактура?') },
+    { icon: 'shield', titleKey: 'chat.starter.law.title', descKey: 'chat.starter.law.desc',
+      action: () => this.store.sendText(this.i18n.t('chat.starter.law.prompt')) },
   ];
 
   constructor() {

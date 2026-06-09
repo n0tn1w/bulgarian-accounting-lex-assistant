@@ -3,6 +3,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
 import { AssistantService } from './assistant.service';
 import { AuthService } from './auth.service';
+import { I18nService } from './i18n/i18n.service';
 import { AssistantTurn, ChatMessage, Conversation, ConvoContext } from './chat';
 import { groupInvoices } from './grouping';
 import { Invoice, SearchHit } from './models';
@@ -13,26 +14,9 @@ type View = 'assistant' | 'documents' | 'search' | 'laws';
 let _idCounter = 0;
 const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${++_idCounter}`;
 
-/** A short, human title for a conversation, derived from its first user message. */
-function deriveTitle(text: string): string {
-  const t = text.trim();
-  const low = t.toLowerCase();
-  if (t.startsWith('📎')) return t.replace('📎', '').trim().slice(0, 40) || 'Upload';
-  if (low.includes('validate') || low.includes('провер')) return 'Validation';
-  if (low.includes('duplicate') || low.includes('дубли')) return 'Duplicate check';
-  if (low.includes('help') || low.includes('what can you')) return 'Capabilities';
-  if (low.includes('compan') || low.includes('фирм')) return 'Companies';
-  if (/(фактура|invoice|ддс|vat|еик|обща стойност|данъчна основа)/i.test(t)) {
-    const m = t.match(/(\d{7,15})/);
-    return m ? `Invoice ${m[1]}` : 'Invoice analysis';
-  }
-  const firstLine = t.split('\n')[0];
-  return firstLine.length > 44 ? firstLine.slice(0, 44) + '…' : firstLine || 'New chat';
-}
-
 function emptyConversation(): Conversation {
   const now = Date.now();
-  return { id: newId('c'), title: 'New chat', messages: [], activeInvoice: null, createdAt: now, updatedAt: now };
+  return { id: newId('c'), title: '', messages: [], activeInvoice: null, createdAt: now, updatedAt: now };
 }
 
 // Single source of truth for conversations, the per-company working set and the
@@ -42,6 +26,24 @@ export class WorkspaceStore {
   private assistant = inject(AssistantService);
   private api = inject(ApiService);
   private auth = inject(AuthService);
+  private i18n = inject(I18nService);
+
+  /** A short, translated title for a conversation, derived from its first user message. */
+  private deriveTitle(text: string): string {
+    const t = text.trim();
+    const low = t.toLowerCase();
+    if (t.startsWith('📎')) return t.replace('📎', '').trim().slice(0, 40) || this.i18n.t('store.title.upload');
+    if (low.includes('validate') || low.includes('провер')) return this.i18n.t('store.title.validation');
+    if (low.includes('duplicate') || low.includes('дубли')) return this.i18n.t('store.title.duplicate');
+    if (low.includes('help') || low.includes('what can you')) return this.i18n.t('store.title.capabilities');
+    if (low.includes('compan') || low.includes('фирм')) return this.i18n.t('store.title.companies');
+    if (/(фактура|invoice|ддс|vat|еик|обща стойност|данъчна основа)/i.test(t)) {
+      const m = t.match(/(\d{7,15})/);
+      return m ? this.i18n.t('store.title.invoiceN', { number: m[1] }) : this.i18n.t('store.title.invoiceAnalysis');
+    }
+    const firstLine = t.split('\n')[0];
+    return firstLine.length > 44 ? firstLine.slice(0, 44) + '…' : firstLine;
+  }
 
   readonly conversations = signal<Conversation[]>([emptyConversation()]);
   readonly activeId = signal<string>(this.conversations()[0].id);
@@ -50,6 +52,11 @@ export class WorkspaceStore {
   readonly busy = signal(false);
   readonly health = signal<Health>('checking');
   readonly view = signal<View>('assistant');
+
+  // Object URLs of just-uploaded originals, keyed by invoice domain id, for instant
+  // in-browser preview before the server round-trip.
+  readonly localFiles = signal<Map<string, string>>(new Map());
+  private lastUploadedFile: File | null = null;
 
   // search
   readonly searchHits = signal<SearchHit[]>([]);
@@ -166,6 +173,7 @@ export class WorkspaceStore {
   sendFile(file: File): void {
     if (this.busy()) return;
     this.view.set('assistant');
+    this.lastUploadedFile = file;  // consumed in applyTurn to register + persist the original
     this.pushUser(`📎 ${file.name}`);
     this.runTurn(() => this.assistant.handleFile(file, this.context()));
   }
@@ -186,6 +194,66 @@ export class WorkspaceStore {
 
   setActive(invoice: Invoice): void {
     this.updateActive((c) => ({ ...c, activeInvoice: invoice }));
+  }
+
+  readonly lookupBusy = signal(false);
+
+  /** Flip supplier and recipient on the active invoice (manual override). */
+  swapActiveParties(): void {
+    const inv = this.activeInvoice();
+    if (!inv) return;
+    const fc = { ...inv.field_confidence };
+    const swap = (a: string, b: string) => { const t = fc[a]; fc[a] = fc[b]; fc[b] = t; };
+    swap('supplier_name', 'recipient_name');
+    swap('supplier_vat', 'recipient_vat');
+    swap('supplier_eik', 'recipient_eik');
+    const perspective = inv.perspective === 'recipient' ? 'supplier' : 'recipient';
+    this._setActiveInvoice({
+      ...inv,
+      supplier: inv.recipient,
+      recipient: inv.supplier,
+      perspective,
+      field_confidence: fc,
+    });
+  }
+
+  /** Recover/confirm a party from the register by its EIK and merge it in. */
+  lookupActiveCompany(which: 'supplier' | 'recipient' = 'supplier'): void {
+    const inv = this.activeInvoice();
+    const party = which === 'recipient' ? inv?.recipient : inv?.supplier;
+    if (!inv || !party?.eik) return;
+    this.lookupBusy.set(true);
+    this.api.lookupCompany(party.eik).subscribe({
+      next: (r) => {
+        const info = r.company;
+        const merged = {
+          ...party,
+          name: info.name ?? party.name,
+          vat_number: info.vat_number ?? party.vat_number,
+          address: info.address_line1 ?? party.address,
+          source: 'merged',
+        };
+        this._setActiveInvoice({ ...inv, [which]: merged } as Invoice);
+        this.lookupBusy.set(false);
+      },
+      error: () => this.lookupBusy.set(false),
+    });
+  }
+
+  /** Override the detected document type on the active invoice. */
+  setActiveDocType(doc_type: string): void {
+    const inv = this.activeInvoice();
+    if (!inv || inv.doc_type === doc_type) return;
+    this._setActiveInvoice({ ...inv, doc_type });
+  }
+
+  /** Update the active invoice, recomputing the displayed company from the perspective. */
+  private _setActiveInvoice(inv: Invoice): void {
+    const primary = inv.perspective === 'recipient' ? inv.recipient : inv.supplier;
+    const company_name = primary.name || primary.vat_number || primary.eik || 'Unknown company';
+    const next = { ...inv, company_name };
+    this.setActive(next);
+    this.workingSet.update((set) => set.map((i) => (i.id === next.id ? next : i)));
   }
 
   /**
@@ -236,6 +304,7 @@ export class WorkspaceStore {
   }
 
   removeInvoice(id: string): void {
+    this.revokeLocalFile(id);
     this.workingSet.update((set) => set.filter((i) => i.id !== id));
     this.conversations.update((list) =>
       list.map((c) => (c.activeInvoice?.id === id ? { ...c, activeInvoice: null } : c)),
@@ -250,6 +319,8 @@ export class WorkspaceStore {
     this.conversations.set([emptyConversation()]);
     this.activeId.set(this.conversations()[0].id);
     this.workingSet.set([]);
+    this.localFiles().forEach((url) => URL.revokeObjectURL(url));
+    this.localFiles.set(new Map());
   }
 
   private updateActive(fn: (c: Conversation) => Conversation): void {
@@ -262,7 +333,7 @@ export class WorkspaceStore {
   private pushUser(text: string): void {
     this.updateActive((c) => {
       const messages = [...c.messages, { id: ++this.seq, role: 'user' as const, text, cards: [], ts: Date.now() }];
-      const title = c.messages.length === 0 ? deriveTitle(text) : c.title;
+      const title = c.messages.length === 0 ? this.deriveTitle(text) : c.title;
       return { ...c, messages, title };
     });
   }
@@ -284,19 +355,31 @@ export class WorkspaceStore {
           tone: 'warn',
           text:
             this.health() === 'down'
-              ? 'I cannot reach the backend. Start it with `uvicorn app.main:app --port 8000`.'
-              : `Something went wrong: ${e?.message ?? e}`,
+              ? this.i18n.t('store.error.backendDown')
+              : this.i18n.t('store.error.generic', { error: e?.message ?? e }),
         }],
       });
     } finally {
       this.busy.set(false);
+      this.lastUploadedFile = null;
     }
   }
 
   private applyTurn(id: number, turn: AssistantTurn): void {
+    const file = this.lastUploadedFile;
+    const active = turn.setActiveInvoice;
+    if (file && active) this.registerLocalFile(active.id, file);
+
     if (turn.addInvoices?.length) {
       this.mergeInvoices(turn.addInvoices);
-      if (this.auth.isAuthed()) this.api.persistInvoices(turn.addInvoices).subscribe({ error: () => {} });
+      if (this.auth.isAuthed()) {
+        this.api.persistInvoices(turn.addInvoices).subscribe({
+          next: () => {
+            if (file && active) this.api.uploadDocumentFile(active.id, file).subscribe({ error: () => {} });
+          },
+          error: () => {},
+        });
+      }
     }
     this.updateActive((c) => ({
       ...c,
@@ -305,6 +388,30 @@ export class WorkspaceStore {
         m.id === id ? { ...m, text: turn.text, cards: turn.cards, pending: false } : m,
       ),
     }));
+  }
+
+  /** Keep an object URL for instant preview of a just-uploaded original. */
+  private registerLocalFile(id: string, file: File): void {
+    const url = URL.createObjectURL(file);
+    this.localFiles.update((m) => {
+      const prev = m.get(id);
+      if (prev) URL.revokeObjectURL(prev);
+      const next = new Map(m);
+      next.set(id, url);
+      return next;
+    });
+  }
+
+  private revokeLocalFile(id: string): void {
+    const url = this.localFiles().get(id);
+    if (url) {
+      URL.revokeObjectURL(url);
+      this.localFiles.update((m) => {
+        const next = new Map(m);
+        next.delete(id);
+        return next;
+      });
+    }
   }
 
   private complete(id: number, turn: AssistantTurn): void {
@@ -342,7 +449,7 @@ export class WorkspaceStore {
             const c = emptyConversation();
             c.messages = s.messages;
             c.activeInvoice = s.activeInvoice ?? null;
-            c.title = s.messages.length ? deriveTitle(s.messages.find((m: ChatMessage) => m.role === 'user')?.text ?? 'Chat') : 'New chat';
+            c.title = s.messages.length ? this.deriveTitle(s.messages.find((m: ChatMessage) => m.role === 'user')?.text ?? '') : '';
             convs = [c];
           }
           convs.forEach((c) => (c.messages = (c.messages ?? []).filter((m) => !m.pending)));

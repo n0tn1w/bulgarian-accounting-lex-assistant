@@ -1,17 +1,20 @@
 import { ChangeDetectionStrategy, Component, WritableSignal, inject, signal } from '@angular/core';
 
 import { AuthService } from '../../core/auth.service';
+import { I18nService } from '../../core/i18n/i18n.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { IconComponent } from '../../ui/icon.component';
 
 @Component({
   selector: 'app-auth',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [IconComponent],
+  imports: [IconComponent, TranslatePipe],
   templateUrl: './auth.component.html',
 })
 export class AuthComponent {
   private auth = inject(AuthService);
+  private i18n = inject(I18nService);
 
   mode = signal<'login' | 'register'>('login');
   email = signal('');
@@ -42,7 +45,7 @@ export class AuthComponent {
       }
     } catch (err: any) {
       const detail = err?.error?.detail;
-      this.error.set(detail || 'Something went wrong. Check your details and try again.');
+      this.error.set(detail || this.i18n.t('auth.errorGeneric'));
     } finally {
       this.busy.set(false);
     }

@@ -59,12 +59,17 @@ def party_key(party: Party) -> str | None:
 
 
 def _identity_party(invoice: Invoice) -> Party:
-    """The party that defines the invoice's company (supplier, else recipient)."""
-    if party_key(invoice.supplier):
-        return invoice.supplier
-    if party_key(invoice.recipient):
-        return invoice.recipient
-    return invoice.supplier
+    """The party that defines the invoice's company. The chosen perspective decides which
+    side is primary; we still fall back to the other when the primary carries no signal."""
+    if getattr(invoice, "perspective", "supplier") == "recipient":
+        primary, secondary = invoice.recipient, invoice.supplier
+    else:
+        primary, secondary = invoice.supplier, invoice.recipient
+    if party_key(primary):
+        return primary
+    if party_key(secondary):
+        return secondary
+    return primary
 
 
 def company_of(invoice: Invoice) -> Company:
