@@ -10,6 +10,7 @@ def _no_register(monkeypatch):
     # no register lookup, no LLM assist, no doc-type classifier.
     monkeypatch.setattr("app.tools.ingest.extract.should_assist", lambda inv: False)
     monkeypatch.setattr("app.tools.ingest.classifier.predict", lambda text: None)
+    monkeypatch.setattr("app.tools.ingest.field_models.available", lambda: False)
 
 
 def test_invoice_family_matches_invoice_extractor():

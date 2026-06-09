@@ -15,6 +15,9 @@ TWO_PARTY = """ФАКТУРА № 1000000123
 @pytest.fixture(autouse=True)
 def _no_register(monkeypatch):
     monkeypatch.setattr("app.tools.ingest.invoice_extractor.lookup_company", lambda eik: None)
+    # deterministic + independent of any locally-trained models
+    monkeypatch.setattr("app.tools.ingest.classifier.predict", lambda text: None)
+    monkeypatch.setattr("app.tools.ingest.field_models.available", lambda: False)
 
 
 def test_both_eiks_assigned_by_block():

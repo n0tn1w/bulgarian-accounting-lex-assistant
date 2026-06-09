@@ -56,6 +56,7 @@ def _label_from_invoice(inv) -> LabeledFields:
 
     return LabeledFields(
         doc_type=inv.doc_type or "invoice",
+        direction=inv.direction,
         number=inv.number, date=inv.date, currency=inv.currency,
         supplier=party(inv.supplier), recipient=party(inv.recipient),
         net_amount=s(inv.net_amount), vat_amount=s(inv.vat_amount), total_amount=s(inv.total_amount),

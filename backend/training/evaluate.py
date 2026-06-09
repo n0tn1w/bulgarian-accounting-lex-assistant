@@ -163,11 +163,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Evaluate preprocessing on a labeled dataset.")
     ap.add_argument("--data", type=Path, default=None)
     ap.add_argument("--no-classifier", action="store_true", help="disable the doc-type classifier")
+    ap.add_argument("--no-fieldmodels", action="store_true", help="disable the learned field selectors")
     ap.add_argument("--no-llm", action="store_true", help="disable the LLM field assist")
     args = ap.parse_args()
 
     if args.no_classifier:
         os.environ["DOCTYPE_CLASSIFIER_ENABLED"] = "false"
+    if args.no_fieldmodels:
+        os.environ["FIELD_MODELS_ENABLED"] = "false"
     if args.no_llm:
         os.environ["LLM_ASSIST_ENABLED"] = "false"
         os.environ["OCR_VISION_FALLBACK"] = "false"

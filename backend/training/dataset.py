@@ -32,6 +32,7 @@ class LabeledFields(BaseModel):
     """Ground truth for one document. Only doc_type is required."""
 
     doc_type: str
+    direction: Optional[str] = None  # sale | purchase | unknown
     number: Optional[str] = None
     date: Optional[str] = None
     currency: Optional[str] = None

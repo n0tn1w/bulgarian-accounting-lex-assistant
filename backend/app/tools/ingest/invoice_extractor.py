@@ -363,6 +363,53 @@ def recover_parties(invoice: Invoice) -> Invoice:
     return invoice
 
 
+def _apply_field_models(invoice: Invoice, text: str, f: dict[str, ExtractedField]) -> None:
+    """Let the trained selectors fill fields the deterministic pass was weak on. Each value
+    is a verbatim candidate; amounts are only *selected*, never invented. No-op without
+    models. Imported lazily to avoid the candidates<->invoice_extractor import cycle."""
+    from . import field_models
+
+    if not field_models.available():
+        return
+
+    sel_amt = field_models.select_amounts(text)
+    for cls, attr in (("net", "net_amount"), ("vat", "vat_amount"), ("total", "total_amount")):
+        if f[attr].confidence < _HIGH and cls in sel_amt:
+            try:
+                setattr(invoice, attr, Decimal(sel_amt[cls]))
+                invoice.field_confidence[attr] = 0.8
+            except (InvalidOperation, TypeError):
+                pass
+
+    sel_p = field_models.select_parties(text)
+    for cls, party in (("supplier", invoice.supplier), ("recipient", invoice.recipient)):
+        if f[f"{cls}_name"].confidence < _HIGH and cls in sel_p:
+            cand = sel_p[cls]
+            party.name = cand.name
+            invoice.field_confidence[f"{cls}_name"] = 0.8
+            if cand.eik and not party.eik:
+                party.eik = cand.eik
+            if cand.vat and not party.vat_number:
+                party.vat_number = cand.vat
+
+    if f["number"].confidence < _HIGH:
+        exclude = _all_eik(text) | {v.removeprefix("BG") for v in _all_vat(text)}
+        n = field_models.select_number(text, exclude)
+        if n:
+            invoice.number = n
+            invoice.field_confidence["number"] = 0.8
+    if f["date"].confidence < _HIGH:
+        d = field_models.select_date(text)
+        if d:
+            invoice.date = d
+            invoice.field_confidence["date"] = 0.8
+
+    if invoice.direction == Direction.UNKNOWN.value:
+        dr = field_models.select_direction(text)
+        if dr:
+            invoice.direction = dr
+
+
 def extract_invoice_from_text(
     text: str,
     doc_id: str,
@@ -402,6 +449,9 @@ def extract_invoice_from_text(
         direction=detect_direction(text).value,
         reverse_charge=detect_reverse_charge(text),
     )
+
+    # Trained selectors fill any weak fields (verbatim candidates; amounts selection-only).
+    _apply_field_models(invoice, text, f)
 
     # Recover the total from the "Словом:" words line when the numeric one is garbled.
     if invoice.total_amount is None:

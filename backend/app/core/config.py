@@ -129,6 +129,14 @@ class Settings(BaseSettings):
     # Opt-in: a user "save for training" writes the corrected document into the local
     # dataset. Off by default since it copies tenant documents to local disk.
     training_capture_enabled: bool = Field(default=False, alias="TRAINING_CAPTURE_ENABLED")
+    # Learned field selectors (amounts/parties/number/date/direction). They only PICK
+    # among deterministic candidates — values stay verbatim — and override a field only
+    # when confident and the deterministic result was weak. Gitignored, local artifacts.
+    field_models_enabled: bool = Field(default=True, alias="FIELD_MODELS_ENABLED")
+    field_models_dir: str = Field(
+        default=str(_REPO_ROOT / "data" / "models" / "fields"), alias="FIELD_MODELS_DIR"
+    )
+    field_model_min_proba: float = Field(default=0.6, alias="FIELD_MODEL_MIN_PROBA")
 
     # comparison / IR (TF-IDF fusion)
     ir_weight_word: float = Field(default=0.65, alias="IR_WEIGHT_WORD")

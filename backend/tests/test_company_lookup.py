@@ -63,6 +63,7 @@ def test_parses_canned_html(monkeypatch):
 def test_recovery_fills_missing_name(monkeypatch):
     monkeypatch.setenv("COMPANY_LOOKUP_ENABLED", "true")
     get_settings.cache_clear()
+    monkeypatch.setattr("app.tools.ingest.field_models.available", lambda: False)
     monkeypatch.setattr(
         ie,
         "lookup_company",
