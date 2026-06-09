@@ -57,28 +57,17 @@ def _cand_party_keys(name, eik, vat) -> set[str]:
     return keys
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description="Train the field selectors.")
-    ap.add_argument("--data", type=Path, nargs="+", default=None, help="one or more dataset dirs")
-    args = ap.parse_args()
-
+def build_rows(examples) -> tuple[dict, dict]:
+    """Auto-label every candidate against the ground truth, grouped by field. Returns
+    (rows, labels) dicts keyed by group. Reused by training and cross-validation."""
     from app.tools.ingest import candidates as C
-    from app.tools.ingest import field_models as FM
-
-    dirs = args.data or [data_root()]
-    examples = [ex for d in dirs for ex in load_dataset(d)]
-    if not examples:
-        print("No labeled examples found."); return
-    print(f"Loaded {len(examples)} labeled documents from {len(dirs)} dir(s)")
 
     rows = {"amounts": [], "party": [], "number": [], "date": [], "direction": []}
     labels = {k: [] for k in rows}
-
     for ex in examples:
         text = ex.text()
         lab = ex.label
 
-        # amounts: which candidate is net / vat / total (else none)
         targets = {"net": _amount(lab.net_amount), "vat": _amount(lab.vat_amount), "total": _amount(lab.total_amount)}
         for c in C.amount_candidates(text):
             cls = "none"
@@ -88,23 +77,36 @@ def main() -> None:
                     break
             rows["amounts"].append(c.features()); labels["amounts"].append(cls)
 
-        # parties: supplier / recipient / none
         sup_keys, rec_keys = _identity_keys(lab.supplier), _identity_keys(lab.recipient)
         for c in C.party_candidates(text):
             ck = _cand_party_keys(c.name, c.eik, c.vat)
             cls = "supplier" if (sup_keys and ck & sup_keys) else "recipient" if (rec_keys and ck & rec_keys) else "none"
             rows["party"].append(c.features()); labels["party"].append(cls)
 
-        # number / date: yes / no
-        exclude = set()
-        for c in C.number_candidates(text, exclude):
+        for c in C.number_candidates(text, set()):
             rows["number"].append(c.features()); labels["number"].append("yes" if c.value == lab.number else "no")
         for c in C.date_candidates(text):
             rows["date"].append(c.features()); labels["date"].append("yes" if c.value == lab.date else "no")
 
-        # direction: doc text -> sale/purchase/unknown
         if lab.direction:
             rows["direction"].append(text); labels["direction"].append(lab.direction)
+    return rows, labels
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Train the field selectors.")
+    ap.add_argument("--data", type=Path, nargs="+", default=None, help="one or more dataset dirs")
+    args = ap.parse_args()
+
+    from app.tools.ingest import field_models as FM
+
+    dirs = args.data or [data_root()]
+    examples = [ex for d in dirs for ex in load_dataset(d)]
+    if not examples:
+        print("No labeled examples found."); return
+    print(f"Loaded {len(examples)} labeled documents from {len(dirs)} dir(s)")
+
+    rows, labels = build_rows(examples)
 
     for group in ("amounts", "party", "number", "date"):
         ls = labels[group]

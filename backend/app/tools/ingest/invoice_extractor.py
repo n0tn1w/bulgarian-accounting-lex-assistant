@@ -469,6 +469,14 @@ def extract_invoice_from_text(
     elif vat is None and total is not None and net is not None:
         invoice.vat_amount = total - net
 
+    # VAT is exactly total - net. When both are present, prefer that over a separately
+    # read (and sometimes mis-OCR'd) VAT figure if they don't reconcile. Deterministic
+    # arithmetic, so the figure stays auditable.
+    n, v, t = invoice.net_amount, invoice.vat_amount, invoice.total_amount
+    if n is not None and t is not None and (v is None or abs((n + v) - t) > Decimal("0.02")):
+        invoice.vat_amount = t - n
+        invoice.field_confidence["vat_amount"] = max(invoice.field_confidence.get("vat_amount", 0.0), 0.8)
+
     # Derive a VAT tax line when we have base + amount.
     if invoice.net_amount and invoice.vat_amount and invoice.net_amount > 0:
         rate = (invoice.vat_amount / invoice.net_amount).quantize(Decimal("0.01"))

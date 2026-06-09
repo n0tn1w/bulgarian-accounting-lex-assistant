@@ -54,6 +54,12 @@ def reset() -> None:
     _bundle, _tried = None, False
 
 
+def set_models(bundle: dict) -> None:
+    """Inject in-memory selectors (used by cross-validation) instead of loading from disk."""
+    global _bundle, _tried
+    _bundle, _tried = bundle, True
+
+
 def _models() -> dict:
     global _bundle, _tried
     if _bundle is not None or _tried:
