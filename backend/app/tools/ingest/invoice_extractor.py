@@ -180,11 +180,45 @@ def extract_recipient_name(text: str) -> ExtractedField:
     return _extract_party_name(text, _RECIPIENT_LABELS)
 
 
+_NAME_FINDER = re.compile(
+    rf"[А-Яа-яA-Za-z0-9\-\"'.,]+(?:\s+[А-Яа-яA-Za-z0-9\-\"'.,]+){{0,5}}?\s+{_COMPANY_SUFFIX}\b",
+    re.IGNORECASE,
+)
+
+
+def _column_split_blocks(text: str) -> tuple[str, str] | None:
+    """Handle the common two-column header (supplier label and recipient label printed
+    side-by-side, with the two company names stacked beneath them in two columns). Embedded
+    text (pdftotext -layout) keeps both columns on the same line, so a naive label-order
+    split interleaves the names. Split the party region at the second company's column.
+    Returns (supplier_block, recipient_block) or None when it's not a two-column header.
+    """
+    lines = text.split("\n")
+    for i, line in enumerate(lines):
+        ms = re.search(_SUPPLIER_LABELS, line, re.IGNORECASE)
+        mr = re.search(_RECIPIENT_LABELS, line, re.IGNORECASE)
+        if not (ms and mr) or abs(ms.start() - mr.start()) <= 3:
+            continue
+        region = lines[i:i + 10]
+        cut = next((m[1].start() for l in region
+                    if len(m := list(_NAME_FINDER.finditer(l))) >= 2), None)
+        if cut is None:
+            continue
+        left = "\n".join(l[:cut] for l in region)
+        right = "\n".join(l[cut:] for l in region)
+        return (left, right) if ms.start() < mr.start() else (right, left)
+    return None
+
+
 def _split_party_blocks(text: str) -> tuple[str, str]:
     """Split the document into the supplier and recipient sections by their role labels.
 
-    Handles either ordering on the page; returns ("", "") for a block that has no label.
+    Handles side-by-side columns and either top-to-bottom ordering; returns ("", "") for a
+    block that has no label.
     """
+    columns = _column_split_blocks(text)
+    if columns is not None:
+        return columns
     sup = re.search(_SUPPLIER_LABELS, text, re.IGNORECASE)
     rec = re.search(_RECIPIENT_LABELS, text, re.IGNORECASE)
     if sup and rec:
@@ -230,7 +264,10 @@ def _apply_low_conf(field: ExtractedField, low_conf_tokens: set[str] | None) -> 
 # Handles real layouts like "ОБЩА СТОЙНОСТ: BGN 141.60".
 _CUR = r"(?:BGN|лв\.?|лева|EUR|€|евро)?"
 _SEP = rf"\s*[:\-]?\s*{_CUR}\s*[:\-]?\s*"
-_AMT = r"(-?[\d  ]+[.,]\d{2})"
+# A monetary amount: integer part either run-together (30686.57) or grouped with
+# thousands separators (space / nbsp / dot / comma: "3,580.85", "2 259,90"), then a
+# 2-digit decimal. clean_amount() normalizes the locale afterwards.
+_AMT = r"(-?(?:\d{1,3}(?:[   .,]\d{3})+|\d+)[.,]\d{2})"
 
 
 def _extract_amount(text: str, labels: list[str]) -> ExtractedField:
@@ -262,14 +299,33 @@ def extract_vat_amount(text: str) -> ExtractedField:
     ])
 
 
+_TOTAL_LABELS = [
+    r"Обща\s+стойност\s+за\s+плащане",
+    r"Обща\s+стойност\s+на\s+фактурата",
+    r"Обща\s+стойност",
+    r"Всичко\s+за\s+плащане",
+    r"Сума\s+за\s+плащане",
+    r"Крайна\s+сума",
+    r"Дължима\s+сума",
+    r"Общо\s+за\s+плащане",
+    r"Общо\s*\(\s*BGN\s*\)",
+]
+
+
 def extract_total_amount(text: str) -> ExtractedField:
-    return _extract_amount(text, [
-        r"Обща\s+стойност",
-        r"Всичко\s+за\s+плащане",
-        r"Сума\s+за\s+плащане",
-        r"Крайна\s+сума",
-        r"Общо\s+за\s+плащане",
-    ])
+    f = _extract_amount(text, _TOTAL_LABELS)
+    if f.value is not None:
+        return f
+    # Tolerant fallback: real layouts put a few words between the label and the amount
+    # ("Обща стойност на фактурата 131.62", "Общо за плащане в лева: 3,580.85"). Allow a
+    # short non-digit gap on the same line.
+    for label in _TOTAL_LABELS:
+        m = re.search(label + r"[^\d\n]{0,20}?" + _AMT, text, re.IGNORECASE)
+        if m:
+            amt = clean_amount(m.group(1))
+            if amt is not None:
+                return ExtractedField(value=str(amt), confidence=_LOW)
+    return f
 
 
 def parse_invoice_fields(
@@ -466,16 +522,20 @@ def extract_invoice_from_text(
         invoice.total_amount = net + vat
     elif net is None and total is not None and vat is not None:
         invoice.net_amount = total - vat
-    elif vat is None and total is not None and net is not None:
-        invoice.vat_amount = total - net
 
-    # VAT is exactly total - net. When both are present, prefer that over a separately
-    # read (and sometimes mis-OCR'd) VAT figure if they don't reconcile. Deterministic
-    # arithmetic, so the figure stays auditable.
+    # Recompute/derive VAT = total - net only when that difference is a plausible BG VAT
+    # rate (0 / ~9% / ~20% of the base). This fills a missing or garbled VAT without
+    # corrupting invoices that carry non-taxable components (leasing, telecom balances)
+    # where total != net + VAT by design. Deterministic arithmetic, so it stays auditable.
     n, v, t = invoice.net_amount, invoice.vat_amount, invoice.total_amount
-    if n is not None and t is not None and (v is None or abs((n + v) - t) > Decimal("0.02")):
-        invoice.vat_amount = t - n
-        invoice.field_confidence["vat_amount"] = max(invoice.field_confidence.get("vat_amount", 0.0), 0.8)
+    if n is not None and t is not None and n > 0:
+        derived = t - n
+        rate = derived / n
+        plausible = any(abs(rate - r) < Decimal("0.015") for r in (Decimal("0"), Decimal("0.09"), Decimal("0.20")))
+        inconsistent = v is None or abs((n + v) - t) > Decimal("0.02")
+        if plausible and inconsistent:
+            invoice.vat_amount = derived
+            invoice.field_confidence["vat_amount"] = max(invoice.field_confidence.get("vat_amount", 0.0), 0.8)
 
     # Derive a VAT tax line when we have base + amount.
     if invoice.net_amount and invoice.vat_amount and invoice.net_amount > 0:
