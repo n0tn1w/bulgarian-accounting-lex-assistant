@@ -116,7 +116,7 @@ export const EN = {
     conf: 'conf',
     empty: 'No active document yet. Paste an invoice or drop a file, and its details — fields, confidence, company and validation — appear here.',
     companiesEmpty: 'Upload invoices to organise them into per-company working sets.',
-    action: { validate: 'Validate', duplicates: 'Duplicates', swap: 'Swap parties', swapTitle: 'Flip supplier and recipient if they were read the wrong way round', lookupEik: 'Look up EIK' },
+    action: { validate: 'Validate', duplicates: 'Duplicates', swap: 'Swap parties', swapTitle: 'Flip supplier and recipient if they were read the wrong way round', lookupEik: 'Look up EIK', saveTraining: 'Save for training', saved: 'Saved ✓' },
     preview: { show: 'Preview original', hide: 'Hide original', none: 'No original available.',
       expand: 'Full screen', newTab: 'Open in new tab' },
   },

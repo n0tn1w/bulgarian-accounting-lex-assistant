@@ -197,6 +197,17 @@ export class WorkspaceStore {
   }
 
   readonly lookupBusy = signal(false);
+  readonly trainSaved = signal<string | null>(null);
+
+  /** Save the active (corrected) document as a labeled training example. */
+  saveActiveForTraining(): void {
+    const inv = this.activeInvoice();
+    if (!inv) return;
+    this.api.saveDocumentLabel(inv.id, inv).subscribe({
+      next: () => this.trainSaved.set(inv.id),
+      error: () => {},
+    });
+  }
 
   /** Flip supplier and recipient on the active invoice (manual override). */
   swapActiveParties(): void {

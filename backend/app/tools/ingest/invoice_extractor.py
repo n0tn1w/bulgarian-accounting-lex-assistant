@@ -18,7 +18,12 @@ from .bg_amount_words import total_from_words
 from .company import tag_company
 from .company_lookup import lookup_company
 from .currency import detect_currency_text
-from .document_types import Direction, detect_direction, detect_document_type, detect_reverse_charge
+from .document_types import (
+    Direction,
+    classify_document_type,
+    detect_direction,
+    detect_reverse_charge,
+)
 from .eik import validate_eik
 from .ocr import normalize_token
 
@@ -393,7 +398,7 @@ def extract_invoice_from_text(
         vat_amount=amt("vat_amount"),
         total_amount=amt("total_amount"),
         field_confidence={k: v.confidence for k, v in f.items()},
-        doc_type=detect_document_type(text).value,
+        doc_type=classify_document_type(text).value,
         direction=detect_direction(text).value,
         reverse_charge=detect_reverse_charge(text),
     )

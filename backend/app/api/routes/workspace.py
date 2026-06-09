@@ -99,3 +99,51 @@ def get_document_file(external_id: str, db: Session = Depends(get_tenant_db)) ->
         media_type=row.content_type or "application/pdf",
         headers={"Content-Disposition": f'inline; filename="{row.filename or external_id}"'},
     )
+
+
+@router.post("/documents/{external_id}/label")
+def save_label(
+    external_id: str,
+    invoice: Invoice,
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_tenant_db),
+) -> dict:
+    """Save a user-corrected document as a labeled training example (opt-in). Writes the
+    stored original + a label.json into the local gitignored dataset for later
+    train/evaluate. Amounts are recorded as labels only — never model-derived."""
+    import json
+    import re
+    from pathlib import Path
+
+    from app.core import get_settings
+
+    settings = get_settings()
+    if not settings.training_capture_enabled:
+        raise HTTPException(status_code=503, detail="training capture disabled")
+    row = ws.get_document_file(db, external_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="no stored original to label")
+
+    data_dir = Path(settings.preprocessing_data_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    stem = re.sub(r"[^0-9A-Za-zА-Яа-я_.-]+", "_", external_id) or "doc"
+    ext = ".pdf" if "pdf" in (row.content_type or "") else (Path(row.filename or "").suffix or ".bin")
+    (data_dir / f"{stem}{ext}").write_bytes(row.data)
+
+    def party(p) -> dict:
+        return {"name": p.name, "vat_number": p.vat_number, "eik": p.eik}
+
+    def amt(v) -> str | None:
+        return None if v is None else str(v)
+
+    label = {
+        "doc_type": invoice.doc_type, "number": invoice.number, "date": invoice.date,
+        "currency": invoice.currency, "supplier": party(invoice.supplier),
+        "recipient": party(invoice.recipient), "net_amount": amt(invoice.net_amount),
+        "vat_amount": amt(invoice.vat_amount), "total_amount": amt(invoice.total_amount),
+        "extra": invoice.extra,
+    }
+    (data_dir / f"{stem}.label.json").write_text(
+        json.dumps(label, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    return {"saved": stem}

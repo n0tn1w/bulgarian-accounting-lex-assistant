@@ -6,6 +6,10 @@ from app.tools.ingest import extract_document, extract_invoice_from_text
 @pytest.fixture(autouse=True)
 def _no_register(monkeypatch):
     monkeypatch.setattr("app.tools.ingest.invoice_extractor.lookup_company", lambda eik: None)
+    # keep extraction deterministic/offline + independent of any locally-trained model:
+    # no register lookup, no LLM assist, no doc-type classifier.
+    monkeypatch.setattr("app.tools.ingest.extract.should_assist", lambda inv: False)
+    monkeypatch.setattr("app.tools.ingest.classifier.predict", lambda text: None)
 
 
 def test_invoice_family_matches_invoice_extractor():

@@ -7,9 +7,14 @@ code runs across dev, CI and prod.
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Repo root: backend/app/core/config.py -> parents[3]. Local-only training data and
+# models live under <repo>/data/ (gitignored), never committed.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -105,6 +110,25 @@ class Settings(BaseSettings):
     )
     company_lookup_timeout: float = Field(default=5.0, alias="COMPANY_LOOKUP_TIMEOUT")
     company_lookup_cache_size: int = Field(default=512, alias="COMPANY_LOOKUP_CACHE_SIZE")
+
+    # Trainable preprocessing (assist-only; amounts stay deterministic). The labeled
+    # dataset, OCR-text cache and trained model live under a gitignored local path.
+    preprocessing_data_dir: str = Field(
+        default=str(_REPO_ROOT / "data" / "preprocessing"), alias="PREPROCESSING_DATA_DIR"
+    )
+    # Doc-type classifier: used only when the keyword detector is unsure and the model is
+    # confident; decisive keyword phrases always win.
+    doctype_classifier_enabled: bool = Field(default=True, alias="DOCTYPE_CLASSIFIER_ENABLED")
+    doctype_model_path: str = Field(
+        default=str(_REPO_ROOT / "data" / "models" / "doctype.joblib"), alias="DOCTYPE_MODEL_PATH"
+    )
+    doctype_model_min_proba: float = Field(default=0.65, alias="DOCTYPE_MODEL_MIN_PROBA")
+    # LLM few-shot assist for weak NON-AMOUNT fields (type/parties); never touches money.
+    llm_assist_enabled: bool = Field(default=True, alias="LLM_ASSIST_ENABLED")
+    llm_assist_examples: int = Field(default=4, alias="LLM_ASSIST_EXAMPLES")
+    # Opt-in: a user "save for training" writes the corrected document into the local
+    # dataset. Off by default since it copies tenant documents to local disk.
+    training_capture_enabled: bool = Field(default=False, alias="TRAINING_CAPTURE_ENABLED")
 
     # comparison / IR (TF-IDF fusion)
     ir_weight_word: float = Field(default=0.65, alias="IR_WEIGHT_WORD")

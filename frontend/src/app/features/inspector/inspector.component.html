@@ -75,6 +75,11 @@
         </button>
       </div>
 
+      <button class="btn ghost" style="width:100%; margin-top:8px" (click)="store.saveActiveForTraining()">
+        <app-icon name="spark" [size]="15" />
+        {{ (store.trainSaved() === inv.id ? 'inspector.action.saved' : 'inspector.action.saveTraining') | t }}
+      </button>
+
       <button class="btn ghost" style="width:100%; margin-top:8px" (click)="togglePreview()">
         <app-icon name="doc" [size]="15" />
         {{ (showPreview() ? 'inspector.preview.hide' : 'inspector.preview.show') | t }}

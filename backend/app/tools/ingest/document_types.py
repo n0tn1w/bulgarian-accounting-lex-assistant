@@ -108,6 +108,31 @@ def detect_document_type(text: str) -> DocumentType:
     return DocumentType.OTHER
 
 
+def classify_document_type(text: str) -> DocumentType:
+    """Document type with an assist from the trained classifier. The keyword detector
+    wins whenever it is sure; only when it falls through to OTHER do we consult the model,
+    and only if the model is enabled and confident. The model never affects any other
+    field — just the type."""
+    kw = detect_document_type(text)
+    if kw is not DocumentType.OTHER:
+        return kw
+
+    from app.core import get_settings
+
+    settings = get_settings()
+    if not settings.doctype_classifier_enabled:
+        return kw
+    from app.tools.ingest import classifier
+
+    pred = classifier.predict(text)
+    if pred and pred[1] >= settings.doctype_model_min_proba:
+        try:
+            return DocumentType(pred[0])
+        except ValueError:  # model emitted an unknown label
+            return kw
+    return kw
+
+
 def detect_direction(text: str, hint: str = "") -> Direction:
     t = f"{text or ''} {hint or ''}".lower()
     # Strong import/export markers (customs) outrank the generic продажба/покупка words.

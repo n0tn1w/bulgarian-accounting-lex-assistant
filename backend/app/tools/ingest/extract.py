@@ -18,6 +18,7 @@ from app.domain import Invoice
 from .company import tag_company
 from .document_types import DocumentType
 from .invoice_extractor import extract_invoice_from_text, recover_parties
+from .llm_assist import assist_fields, merge_fields, should_assist
 from .ocr import extract_ocr_from_pdf_bytes
 from .vision_extract import extract_invoice_via_vision, merge_into_invoice, should_use_vision
 
@@ -41,6 +42,15 @@ def extract_document(
         # recover their canonical names from the register and re-tag the company.
         recover_parties(invoice)
         tag_company(invoice)
+
+    # Hard cases (no type, missing parties): let the LLM fill weak NON-AMOUNT fields,
+    # then re-recover/re-tag. Amounts stay rule-computed. No-ops without a model.
+    if should_assist(invoice):
+        fields = assist_fields(text, invoice.doc_type)
+        if fields:
+            merge_fields(invoice, fields)
+            recover_parties(invoice)
+            tag_company(invoice)
     return invoice
 
 

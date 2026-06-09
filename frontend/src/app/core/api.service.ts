@@ -72,6 +72,12 @@ export class ApiService {
       { responseType: 'blob' });
   }
 
+  /** Save the (corrected) document as a labeled training example (opt-in on the server). */
+  saveDocumentLabel(externalId: string, invoice: Invoice): Observable<{ saved: string }> {
+    return this.http.post<{ saved: string }>(
+      `${this.base}/workspace/documents/${encodeURIComponent(externalId)}/label`, invoice);
+  }
+
   validate(invoice: Invoice): Observable<ValidateResponse> {
     return this.http.post<ValidateResponse>(`${this.base}/validate`, invoice);
   }

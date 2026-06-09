@@ -38,3 +38,8 @@ private_samples/
 
 # BM25 pickle artifacts (recreated on demand, never commit)
 backend/invoice_rag/storage/
+
+# Trainable-preprocessing local data + trained models (real documents, never commit)
+/data/
+backend/data/
+*.joblib
