@@ -17,14 +17,15 @@ from training.dataset import data_root, load_dataset
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Train the doc-type classifier.")
-    ap.add_argument("--data", type=Path, default=None)
+    ap.add_argument("--data", type=Path, nargs="+", default=None, help="one or more dataset dirs")
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
     from app.core import get_settings
     from app.tools.ingest import classifier
 
-    examples = load_dataset(args.data or data_root())
+    dirs = args.data or [data_root()]
+    examples = [ex for d in dirs for ex in load_dataset(d)]
     texts = [ex.text() for ex in examples]
     labels = [ex.label.doc_type for ex in examples]
     counts = Counter(labels)

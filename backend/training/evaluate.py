@@ -161,7 +161,7 @@ def _report_dict(rep: Report) -> dict:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Evaluate preprocessing on a labeled dataset.")
-    ap.add_argument("--data", type=Path, default=None)
+    ap.add_argument("--data", type=Path, nargs="+", default=None, help="one or more dataset dirs")
     ap.add_argument("--no-classifier", action="store_true", help="disable the doc-type classifier")
     ap.add_argument("--no-fieldmodels", action="store_true", help="disable the learned field selectors")
     ap.add_argument("--no-llm", action="store_true", help="disable the LLM field assist")
@@ -177,16 +177,16 @@ def main() -> None:
     from app.core import get_settings
     get_settings.cache_clear()
 
-    root = args.data or data_root()
-    examples = load_dataset(root)
+    dirs = args.data or [data_root()]
+    examples = [ex for d in dirs for ex in load_dataset(d)]
     if not examples:
-        print(f"No labeled examples found under {root}. "
+        print(f"No labeled examples found under {', '.join(str(d) for d in dirs)}. "
               f"Add <file> + <file>.label.json pairs (see training/dataset.label_template).")
         return
     rep = evaluate(examples)
     _print(rep)
 
-    reports = root / "reports"
+    reports = dirs[0] / "reports"
     reports.mkdir(parents=True, exist_ok=True)
     out = reports / "latest.json"
     out.write_text(json.dumps(_report_dict(rep), ensure_ascii=False, indent=2), encoding="utf-8")

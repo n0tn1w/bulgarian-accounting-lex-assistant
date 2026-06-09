@@ -59,15 +59,17 @@ def _cand_party_keys(name, eik, vat) -> set[str]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Train the field selectors.")
-    ap.add_argument("--data", type=Path, default=None)
+    ap.add_argument("--data", type=Path, nargs="+", default=None, help="one or more dataset dirs")
     args = ap.parse_args()
 
     from app.tools.ingest import candidates as C
     from app.tools.ingest import field_models as FM
 
-    examples = load_dataset(args.data or data_root())
+    dirs = args.data or [data_root()]
+    examples = [ex for d in dirs for ex in load_dataset(d)]
     if not examples:
         print("No labeled examples found."); return
+    print(f"Loaded {len(examples)} labeled documents from {len(dirs)} dir(s)")
 
     rows = {"amounts": [], "party": [], "number": [], "date": [], "direction": []}
     labels = {k: [] for k in rows}
