@@ -50,7 +50,7 @@ def should_use_vision(invoice: Invoice, mean_conf: float) -> bool:
     s = get_settings()
     if not s.ocr_vision_fallback or not vision_model():
         return False
-    return mean_conf < s.ocr_vision_conf_min or _key_fields_weak(invoice)
+    return mean_conf < s.ocr_vision_conf_min or _key_fields_weak(invoice) or _parties_collide(invoice)
 
 
 def _key_fields_weak(invoice: Invoice) -> bool:
@@ -60,6 +60,18 @@ def _key_fields_weak(invoice: Invoice) -> bool:
         for k in ("number", "total_amount", "supplier_name", "recipient_name")
     )
     return weak >= 2
+
+
+def _parties_collide(invoice: Invoice) -> bool:
+    """Supplier == recipient is impossible on a real document — a sure sign the parties
+    were mis-assigned (e.g. a two-column header read into one block). Worth a vision look."""
+    from .company import normalize_company_name
+
+    s, r = invoice.supplier, invoice.recipient
+    if s.eik and s.eik == r.eik:
+        return True
+    sn, rn = normalize_company_name(s.name or ""), normalize_company_name(r.name or "")
+    return bool(sn) and sn == rn
 
 
 def extract_invoice_via_vision(
@@ -99,18 +111,24 @@ def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> I
             invoice.date = iso
             fc["date"] = _VISION_CONF
 
+    # When the deterministic parties collided (supplier == recipient), they're definitely
+    # wrong, so let vision re-assign them even over a high-confidence (register-recovered)
+    # but mistaken value.
+    collide = _parties_collide(invoice)
     for who, party in (("supplier", invoice.supplier), ("recipient", invoice.recipient)):
         touched = False
+        if collide and fields.get(f"{who}_name") and fields[f"{who}_name"].value:
+            party.eik = party.vat_number = None  # drop the mis-assigned ids; re-fill below
         for attr, key in (
             ("name", f"{who}_name"),
             ("vat_number", f"{who}_vat"),
             ("eik", f"{who}_eik"),
         ):
-            if take(key):
+            if take(key) or (collide and fields.get(key) and fields[key].value):
                 setattr(party, attr, fields[key].value)
                 fc[key] = _VISION_CONF
                 touched = True
-        if touched and party.source == "extracted":
+        if touched and party.source in ("extracted", "merged"):
             party.source = "vision"
 
     for key in _AMOUNT_FIELDS:
