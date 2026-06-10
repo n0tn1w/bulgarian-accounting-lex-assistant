@@ -106,12 +106,9 @@ def _raw_text(path: Path) -> str:
     if ext in (".txt", ".csv"):
         return path.read_text(encoding="utf-8", errors="replace")
     if ext in (".png", ".jpg", ".jpeg", ".tif", ".tiff"):
-        from PIL import Image
+        from app.tools.ingest.ocr import extract_ocr_from_image_bytes
 
-        from app.tools.ingest.ocr import _image_to_text, _ocr_data, _preprocess
-
-        image = _preprocess(Image.open(path))
-        return _image_to_text(_ocr_data(image, get_settings().ocr_languages), image.width)
+        return extract_ocr_from_image_bytes(path.read_bytes()).text
     raise ValueError(f"unsupported source file type: {ext}")
 
 

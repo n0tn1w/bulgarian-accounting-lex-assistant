@@ -17,6 +17,26 @@ def test_preprocess_returns_binary_grayscale():
     assert set(np.unique(arr).tolist()) <= {0, 255}  # Otsu binarized
 
 
+def test_photo_mode_upscales_small_images():
+    small = np.full((300, 400, 3), 255, dtype=np.uint8)
+    small[120:180, 40:360] = 20
+    plain = np.array(ocr._preprocess(Image.fromarray(small), photo=False))
+    photo = np.array(ocr._preprocess(Image.fromarray(small), photo=True))
+    assert max(photo.shape) > max(plain.shape)  # photo mode upscaled the low-res image
+
+
+def test_extract_ocr_from_image_bytes_runs():
+    import io
+
+    if not ocr.ocr_status().get("ocr"):
+        pytest.skip("tesseract not available")
+    buf = io.BytesIO()
+    Image.new("RGB", (1200, 800), "white").save(buf, format="JPEG")
+    res = ocr.extract_ocr_from_image_bytes(buf.getvalue())
+    assert isinstance(res, ocr.OcrResult)
+    assert res.page_images  # photo pipeline produced a processed page
+
+
 def test_image_to_text_reflows_and_flags_low_conf():
     data = {
         "text": ["Hello", "", "World"],

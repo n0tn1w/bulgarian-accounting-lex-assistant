@@ -86,10 +86,13 @@ def ocr_status() -> dict[str, object]:
     return status
 
 
-def _preprocess(image):
+def _preprocess(image, photo: bool = False):
     """Deskew, denoise and binarize a page image to improve recognition.
 
-    A pass-through when OpenCV is unavailable or preprocessing is disabled.
+    `photo=True` tunes for phone photos / scanned images: small ones are upscaled (tesseract
+    needs adequate x-height) and an adaptive threshold is used so uneven lighting and shadows
+    don't wipe out text the way a single global (Otsu) cutoff would. A pass-through when
+    OpenCV is unavailable or preprocessing is disabled.
     """
     settings = get_settings()
     if not _CV2_IMPORTED or not settings.ocr_preprocess:
@@ -99,13 +102,16 @@ def _preprocess(image):
 
     gray = cv2.cvtColor(np.array(image.convert("RGB")), cv2.COLOR_RGB2GRAY)
 
+    if photo and max(gray.shape[:2]) < 2000:  # upscale low-res photos before OCR
+        gray = cv2.resize(gray, None, fx=2.0, fy=2.0, interpolation=cv2.INTER_CUBIC)
+
     if settings.ocr_denoise:
         gray = cv2.medianBlur(gray, 3)
 
     if settings.ocr_deskew:
         gray = _deskew(gray)
 
-    mode = settings.ocr_threshold.lower()
+    mode = "adaptive" if photo else settings.ocr_threshold.lower()
     if mode == "otsu":
         _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     elif mode == "adaptive":
@@ -221,7 +227,7 @@ def _collect_confidence(data: dict, low: set[str], confs: list[float], threshold
                 low.add(token)
 
 
-def _images_to_result(images) -> OcrResult:
+def _images_to_result(images, photo: bool = False) -> OcrResult:
     settings = get_settings()
     lang = settings.ocr_languages
     threshold = settings.ocr_word_conf_min
@@ -230,7 +236,7 @@ def _images_to_result(images) -> OcrResult:
     confs: list[float] = []
     pages: list[bytes] = []
     for image in images:
-        prepared = _preprocess(image)
+        prepared = _preprocess(image, photo=photo)
         data = _ocr_data(prepared, lang)
         parts.append(_image_to_text(data, prepared.width))
         _collect_confidence(data, low, confs, threshold)
@@ -321,6 +327,19 @@ def extract_ocr_from_pdf_bytes(content: bytes) -> OcrResult:
         raise RuntimeError("OCR dependencies not available (see requirements.txt)")
     images = convert_from_bytes(content, dpi=get_settings().ocr_dpi)
     return _images_to_result(images)
+
+
+def extract_ocr_from_image_bytes(content: bytes) -> OcrResult:
+    """OCR a photographed/scanned image (JPG/PNG/TIFF…) through the same preprocess +
+    column-reflow pipeline as PDF pages. EXIF orientation is honoured so phone photos are
+    upright, and multi-frame images (e.g. TIFF) are read page by page."""
+    if not _OCR_IMPORTED:
+        raise RuntimeError("OCR dependencies not available (see requirements.txt)")
+    from PIL import Image, ImageOps, ImageSequence
+
+    img = Image.open(io.BytesIO(content))
+    frames = [ImageOps.exif_transpose(frame.convert("RGB")) for frame in ImageSequence.Iterator(img)]
+    return _images_to_result(frames or [img.convert("RGB")], photo=True)
 
 
 def extract_text_from_pdf(path: str) -> str:

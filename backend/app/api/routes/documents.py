@@ -15,6 +15,7 @@ from app.api.schemas import (
 )
 from app.tools.ingest import (
     extract_document,
+    extract_from_image_bytes,
     extract_from_pdf_bytes,
     group_by_company,
     invoices_from_xml_content,
@@ -84,4 +85,23 @@ async def extract_pdf(
         invoice = extract_from_pdf_bytes(content, doc_id, source="ocr", perspective=perspective)
     except Exception as exc:  # pragma: no cover - depends on OCR env
         raise HTTPException(status_code=422, detail=f"OCR failed: {exc}") from exc
+    return InvoiceResponse(invoice=invoice)
+
+
+@router.post("/extract-image", response_model=InvoiceResponse)
+async def extract_image(
+    file: UploadFile = File(...),
+    perspective: str = Form("auto"),
+) -> InvoiceResponse:
+    """OCR a photographed/scanned image (JPG/PNG/TIFF…) — EXIF-corrected, preprocessed and
+    column-reflowed like a PDF page — and extract structured fields; a poor photo falls
+    back to the vision model and the register."""
+    if not ocr_status().get("available"):
+        raise HTTPException(status_code=503, detail="OCR not available on this server")
+    content = await file.read()
+    doc_id = (file.filename or "image").rsplit(".", 1)[0]
+    try:
+        invoice = extract_from_image_bytes(content, doc_id, source="ocr", perspective=perspective)
+    except Exception as exc:  # pragma: no cover - depends on OCR env
+        raise HTTPException(status_code=422, detail=f"image OCR failed: {exc}") from exc
     return InvoiceResponse(invoice=invoice)

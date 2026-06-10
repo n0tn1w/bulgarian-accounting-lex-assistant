@@ -4,7 +4,7 @@ from .controlisy import looks_like_controlisy, parse_controlisy
 from .csv_invoice import parse_csv
 from .currency import detect_currency_text, normalize_currency
 from .eik import validate_eik
-from .extract import extract_document, extract_from_pdf_bytes
+from .extract import extract_document, extract_from_image_bytes, extract_from_pdf_bytes
 from .ms_rowset import looks_like_rowset, parse_rowset
 from .vision_extract import extract_invoice_via_vision, merge_into_invoice, should_use_vision
 from .document_types import (
@@ -53,6 +53,7 @@ __all__ = [
     "extract_invoice_from_text",
     "extract_document",
     "extract_from_pdf_bytes",
+    "extract_from_image_bytes",
     "extract_invoice_via_vision",
     "merge_into_invoice",
     "should_use_vision",

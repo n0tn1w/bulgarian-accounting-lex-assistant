@@ -81,6 +81,17 @@ export class AssistantService {
         return this.note(this.t('assistant.note.pdfError', { error: e?.message ?? e }), 'warn');
       }
     }
+    if (/\.(jpe?g|png|tiff?|webp|heic|bmp)$/.test(name) || file.type.startsWith('image/')) {
+      try {
+        const res = await firstValueFrom(this.api.extractImage(file));
+        return this.afterExtract(res.invoice, this.t('assistant.read', { name: file.name }));
+      } catch (e: any) {
+        if (e?.status === 503) {
+          return this.note(this.t('assistant.note.ocrDisabled'), 'warn');
+        }
+        return this.note(this.t('assistant.note.pdfError', { error: e?.message ?? e }), 'warn');
+      }
+    }
     if (name.endsWith('.txt') || file.type.startsWith('text/')) return this.ingestText(await file.text());
     return this.note(this.t('assistant.note.unsupported', { name: file.name }), 'warn');
   }

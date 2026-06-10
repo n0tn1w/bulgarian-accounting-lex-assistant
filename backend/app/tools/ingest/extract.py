@@ -19,7 +19,7 @@ from .company import tag_company
 from .document_types import DocumentType
 from .invoice_extractor import extract_invoice_from_text, recover_parties
 from .llm_assist import assist_fields, merge_fields, should_assist
-from .ocr import extract_ocr_from_pdf_bytes
+from .ocr import extract_ocr_from_image_bytes, extract_ocr_from_pdf_bytes
 from .vision_extract import extract_invoice_via_vision, merge_into_invoice, should_use_vision
 
 
@@ -62,7 +62,21 @@ def extract_from_pdf_bytes(
     perspective: str = "auto",
 ) -> Invoice:
     """OCR a PDF then extract; consult the vision model when the scan is poor."""
-    ocr = extract_ocr_from_pdf_bytes(content)
+    return _ocr_then_extract(extract_ocr_from_pdf_bytes(content), doc_id, source, perspective)
+
+
+def extract_from_image_bytes(
+    content: bytes,
+    doc_id: str,
+    source: str = "ocr",
+    *,
+    perspective: str = "auto",
+) -> Invoice:
+    """OCR a photographed/scanned image then extract; same pipeline as a scanned PDF."""
+    return _ocr_then_extract(extract_ocr_from_image_bytes(content), doc_id, source, perspective)
+
+
+def _ocr_then_extract(ocr, doc_id: str, source: str, perspective: str) -> Invoice:
     invoice = extract_document(
         ocr.text, doc_id, source, perspective=perspective, low_conf_tokens=ocr.low_conf_tokens
     )

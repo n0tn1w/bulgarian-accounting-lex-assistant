@@ -53,6 +53,13 @@ export class ApiService {
     return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-pdf`, form);
   }
 
+  extractImage(file: File, perspective = 'auto'): Observable<InvoiceResponse> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('perspective', perspective);
+    return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-image`, form);
+  }
+
   /** Look up a counterparty in the commercial register by EIK. */
   lookupCompany(eik: string): Observable<CompanyLookupResponse> {
     return this.http.get<CompanyLookupResponse>(`${this.base}/documents/company/${encodeURIComponent(eik)}`);
