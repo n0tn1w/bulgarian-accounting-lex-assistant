@@ -88,6 +88,9 @@ class Invoice(BaseModel):
 
     # Per-field extraction confidence, keyed by field name.
     field_confidence: dict[str, float] = Field(default_factory=dict)
+    # True when the vision model contributed any field (poor scan / photo fallback), so
+    # the UI can flag the document as model-read.
+    vision_used: bool = False
     # Document-type specific fields that don't fit the invoice shape: fiscal device
     # number, IBAN, statement period/balances, customs MRN, etc.
     extra: dict[str, str] = Field(default_factory=dict)

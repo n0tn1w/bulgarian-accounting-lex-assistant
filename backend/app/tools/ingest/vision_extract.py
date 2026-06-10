@@ -96,6 +96,7 @@ def extract_invoice_via_vision(
 def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> Invoice:
     """Apply vision fields, overriding only what was missing or low-confidence."""
     fc = invoice.field_confidence
+    changed = False
 
     def take(key: str) -> bool:
         return key in fields and bool(fields[key].value) and fc.get(key, 0.0) < _HIGH
@@ -103,6 +104,7 @@ def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> I
     if take("number"):
         invoice.number = fields["number"].value
         fc["number"] = _VISION_CONF
+        changed = True
     if take("date"):
         from .invoice_extractor import _valid_iso, normalize_date
 
@@ -110,6 +112,7 @@ def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> I
         if _valid_iso(iso):  # the model may return dd.mm.yyyy; normalise + sanity-check
             invoice.date = iso
             fc["date"] = _VISION_CONF
+            changed = True
 
     # When the deterministic parties collided (supplier == recipient), they're definitely
     # wrong, so let vision re-assign them even over a high-confidence (register-recovered)
@@ -128,8 +131,10 @@ def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> I
                 setattr(party, attr, fields[key].value)
                 fc[key] = _VISION_CONF
                 touched = True
-        if touched and party.source in ("extracted", "merged"):
-            party.source = "vision"
+        if touched:
+            changed = True
+            if party.source in ("extracted", "merged"):
+                party.source = "vision"
 
     for key in _AMOUNT_FIELDS:
         # Amounts stay deterministic/auditable: vision only FILLS an amount the rules left
@@ -138,11 +143,14 @@ def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> I
             try:
                 setattr(invoice, key, Decimal(fields[key].value))
                 fc[key] = _VISION_CONF
+                changed = True
             except (InvalidOperation, TypeError):
                 pass
 
     if "currency" in fields and fields["currency"].value:
         invoice.currency = fields["currency"].value
+    if changed:
+        invoice.vision_used = True
     return invoice
 
 

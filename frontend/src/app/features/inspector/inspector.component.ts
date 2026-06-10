@@ -47,6 +47,13 @@ export class InspectorComponent {
     return n == null ? '—' : `${Math.round(n * 100)}%`;
   }
 
+  /** A field worth a human glance: present but not high-confidence (positional fallback,
+      vision/LLM-assisted, or register-recovered). Confidence >= 0.9 is "confident". */
+  lowConf(inv: Invoice, key: string): boolean {
+    const c = inv.field_confidence?.[key] ?? 0;
+    return c > 0 && c < 0.9;
+  }
+
   /** Whether a party's fields were filled or corrected from the register. */
   recovered(p: Party): boolean {
     return p?.source === 'register' || p?.source === 'merged';

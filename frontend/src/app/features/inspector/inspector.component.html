@@ -7,6 +7,7 @@
   @if (store.activeInvoice(); as inv) {
     <div class="insp-section">
       <div class="h"><app-icon name="doc" [size]="13" /> {{ 'inspector.activeDoc' | t }}
+        @if (inv.vision_used) { <span class="badge vision" [title]="'inspector.visionTip' | t">{{ 'inspector.vision' | t }}</span> }
         <span class="count chip">{{ pct(avgConfidence()) }} {{ 'inspector.conf' | t }}</span></div>
 
       <div class="summary-line"><span class="k">{{ 'field.type' | t }}</span>
@@ -14,17 +15,17 @@
           @for (t of DOC_TYPES; track t.value) { <option [value]="t.value">{{ t.labelKey | t }}</option> }
         </select></div>
 
-      <div class="summary-line"><span class="k">{{ 'field.number' | t }}</span><span class="v mono">{{ inv.number || '—' }}</span></div>
-      <div class="summary-line"><span class="k">{{ 'field.date' | t }}</span><span class="v mono">{{ inv.date || '—' }}</span></div>
+      <div class="summary-line" [class.low]="lowConf(inv,'number')"><span class="k">{{ 'field.number' | t }}</span><span class="v mono">{{ inv.number || '—' }}</span></div>
+      <div class="summary-line" [class.low]="lowConf(inv,'date')"><span class="k">{{ 'field.date' | t }}</span><span class="v mono">{{ inv.date || '—' }}</span></div>
 
-      <div class="summary-line"><span class="k">{{ 'field.supplier' | t }}{{ inv.perspective === 'supplier' ? ' ★' : '' }}</span>
+      <div class="summary-line" [class.low]="lowConf(inv,'supplier_name')"><span class="k">{{ 'field.supplier' | t }}{{ inv.perspective === 'supplier' ? ' ★' : '' }}</span>
         <span class="v">{{ inv.supplier.name || '—' }}
           @if (recovered(inv.supplier)) { <span class="badge info">{{ 'badge.register' | t }}</span> }
         </span></div>
       <div class="summary-line"><span class="k">{{ 'field.supplierVatEik' | t }}</span>
         <span class="v mono">{{ inv.supplier.vat_number || inv.supplier.eik || '—' }}</span></div>
 
-      <div class="summary-line"><span class="k">{{ 'field.recipient' | t }}{{ inv.perspective === 'recipient' ? ' ★' : '' }}</span>
+      <div class="summary-line" [class.low]="lowConf(inv,'recipient_name')"><span class="k">{{ 'field.recipient' | t }}{{ inv.perspective === 'recipient' ? ' ★' : '' }}</span>
         <span class="v">{{ inv.recipient.name || '—' }}
           @if (recovered(inv.recipient)) { <span class="badge info">{{ 'badge.register' | t }}</span> }
         </span></div>
@@ -32,12 +33,16 @@
         <span class="v mono">{{ inv.recipient.vat_number || inv.recipient.eik || '—' }}</span></div>
 
       @if (hasAmounts(inv)) {
-        <div class="summary-line"><span class="k">{{ 'field.net' | t }}</span>
+        <div class="summary-line" [class.low]="lowConf(inv,'net_amount')"><span class="k">{{ 'field.net' | t }}</span>
           <span class="v mono">{{ inv.net_amount | money: inv.currency }}</span></div>
-        <div class="summary-line"><span class="k">{{ 'field.vat' | t }}</span>
+        <div class="summary-line" [class.low]="lowConf(inv,'vat_amount')"><span class="k">{{ 'field.vat' | t }}</span>
           <span class="v mono">{{ inv.vat_amount | money: inv.currency }}</span></div>
-        <div class="summary-line"><span class="k">{{ 'field.total' | t }}</span>
+        <div class="summary-line" [class.low]="lowConf(inv,'total_amount')"><span class="k">{{ 'field.total' | t }}</span>
           <span class="v mono">{{ inv.total_amount | money: inv.currency }}</span></div>
+      }
+
+      @if (avgConfidence() !== null && avgConfidence()! < 0.9) {
+        <div class="review-hint">{{ 'inspector.reviewHint' | t }}</div>
       }
 
       @for (e of extras(inv); track e[0]) {

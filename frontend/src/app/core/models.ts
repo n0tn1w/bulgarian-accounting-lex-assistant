@@ -50,6 +50,7 @@ export interface Invoice {
   vat_amount?: string | null;
   total_amount?: string | null;
   field_confidence: Record<string, number>;
+  vision_used?: boolean;         // a vision model contributed a field (poor scan/photo)
   company_key?: string | null;
   company_name?: string | null;
   perspective?: string;          // supplier | recipient | auto
