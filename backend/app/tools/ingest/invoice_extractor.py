@@ -287,18 +287,50 @@ def _line_at(text: str, pos: int) -> str:
     return text[start: end if end != -1 else len(text)]
 
 
+def _amount_near_currency(line: str, same: tuple[str, ...]) -> Decimal | None:
+    """On a line that lists both currencies ("... -269.79 лв. -137.94 €"), return the
+    amount immediately followed by one of the wanted currency tokens."""
+    for m in re.finditer(_AMT, line):
+        if any(t in line[m.end():m.end() + 5].lower() for t in same):
+            return clean_amount(m.group(1))
+    return None
+
+
 def _extract_amount(text: str, labels: list[str], currency: str | None = None) -> ExtractedField:
-    """Pull a labelled amount. On euro-transition invoices that print both EUR and BGN
-    (e.g. "Общо с ДДС [EUR]: 46.19" / "Общо с ДДС (лв): 90.34"), skip any value on a line
-    that carries the OTHER currency, so the figure stays in the invoice's currency."""
+    """Pull a labelled amount, kept in the invoice's currency. Euro-transition invoices
+    print both EUR and BGN — sometimes as separate lines ("Общо с ДДС [EUR]: 46.19" /
+    "(лв): 90.34"), sometimes on one line ("Данъчна основа: -269.79 лв. -137.94 €"). Pick
+    the value carrying the detected currency; never a value off the other currency."""
+    same = _CUR_TOKENS.get(currency or "")
     opp = _CUR_TOKENS.get(_OPPOSITE.get(currency or "", ""))
+
+    def from_line(line: str, fallback_amt: str | None) -> Decimal | None:
+        low = line.lower()
+        has_same = bool(same) and any(t in low for t in same)
+        has_opp = bool(opp) and any(t in low for t in opp)
+        if has_same and has_opp:                       # both currencies on the line
+            return _amount_near_currency(line, same)
+        if has_opp and not has_same:                   # other-currency-only line
+            return None
+        return clean_amount(fallback_amt) if fallback_amt else None
+
+    # strict: amount right after the label
     for label in labels:
         for m in re.finditer(label + _SEP + _AMT, text, re.IGNORECASE):
-            if opp and any(t in _line_at(text, m.start()).lower() for t in opp):
-                continue
-            amt = clean_amount(m.group(1))
+            amt = from_line(_line_at(text, m.start()), m.group(1))
             if amt is not None:
                 return ExtractedField(value=str(amt), confidence=_HIGH)
+    # fallback ONLY for a dual-currency line where a rate ("20%") sits between the label
+    # and the amount, e.g. "Данъчна основа 20%: -269.79 лв. -137.94 €".
+    if same and opp:
+        for label in labels:
+            for lm in re.finditer(label, text, re.IGNORECASE):
+                line = _line_at(text, lm.start())
+                low = line.lower()
+                if any(t in low for t in same) and any(t in low for t in opp):
+                    amt = _amount_near_currency(line, same)
+                    if amt is not None:
+                        return ExtractedField(value=str(amt), confidence=_HIGH)
     return ExtractedField(value=None, confidence=0.0)
 
 
@@ -558,9 +590,9 @@ def extract_invoice_from_text(
     # corrupting invoices that carry non-taxable components (leasing, telecom balances)
     # where total != net + VAT by design. Deterministic arithmetic, so it stays auditable.
     n, v, t = invoice.net_amount, invoice.vat_amount, invoice.total_amount
-    if n is not None and t is not None and n > 0:
+    if n is not None and t is not None and n != 0:  # n != 0 so credit notes (negative) work too
         derived = t - n
-        rate = derived / n
+        rate = abs(derived / n)
         plausible = any(abs(rate - r) < Decimal("0.015") for r in (Decimal("0"), Decimal("0.09"), Decimal("0.20")))
         inconsistent = v is None or abs((n + v) - t) > Decimal("0.02")
         if plausible and inconsistent:
