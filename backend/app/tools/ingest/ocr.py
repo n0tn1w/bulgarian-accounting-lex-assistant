@@ -265,6 +265,13 @@ def _looks_like_text(text: str) -> bool:
         1 for c in text
         if ("Ѐ" <= c <= "ӿ") or ("a" <= c <= "z") or ("A" <= c <= "Z")
     )
+    # A broken font encoding renders Cyrillic as exotic Latin-Extended/IPA glyphs (e.g.
+    # "ǻȇȑșȚȗȇȶ" for "Фактура") that ARE letters but not real script. When they dominate,
+    # the embedded layer is useless even if Latin company names push `real` past 200 — OCR
+    # the rendered page instead.
+    exotic = sum(1 for c in text if ("ƀ" <= c <= "ʯ") or ("ᴀ" <= c <= "ỿ"))
+    if exotic > 80 and exotic > real * 0.5:
+        return False
     return real >= 200
 
 
