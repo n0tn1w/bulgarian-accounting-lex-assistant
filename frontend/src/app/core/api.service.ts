@@ -73,6 +73,11 @@ export class ApiService {
       `${this.base}/workspace/documents/${encodeURIComponent(externalId)}/file`, form);
   }
 
+  /** external_ids of documents whose original file is stored server-side. */
+  listDocumentFiles(): Observable<{ external_ids: string[] }> {
+    return this.http.get<{ external_ids: string[] }>(`${this.base}/workspace/documents/files`);
+  }
+
   /** Fetch the stored original file as a Blob (the auth interceptor adds the token). */
   getDocumentFile(externalId: string): Observable<Blob> {
     return this.http.get(`${this.base}/workspace/documents/${encodeURIComponent(externalId)}/file`,

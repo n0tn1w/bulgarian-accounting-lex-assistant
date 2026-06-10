@@ -90,16 +90,16 @@ export class ChatComponent {
 
   onFile(e: Event): void {
     const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (file) this.store.sendFile(file);
+    const files = Array.from(input.files ?? []);
+    if (files.length) this.store.sendFiles(files);
     input.value = '';
   }
 
   onDrop(e: DragEvent): void {
     e.preventDefault();
     this.dragging.set(false);
-    const file = e.dataTransfer?.files?.[0];
-    if (file) this.store.sendFile(file);
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length) this.store.sendFiles(files);
   }
 
   onDragOver(e: DragEvent): void { e.preventDefault(); this.dragging.set(true); }

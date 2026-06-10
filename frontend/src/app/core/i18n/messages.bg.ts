@@ -136,7 +136,7 @@ export const BG = {
       add: 'Добави документи',
     },
     company: { invoices: '{count} фактури', unknown: 'Неизвестна фирма' },
-    cell: { date: 'Дата', counterparty: 'Контрагент', validate: 'Валидирай', duplicates: 'Дубликати', remove: 'Премахни' },
+    cell: { date: 'Дата', counterparty: 'Контрагент', validate: 'Валидирай', duplicates: 'Дубликати', remove: 'Премахни', select: 'Избери като активен', hasFile: 'Оригиналът е наличен' },
   },
 
   search: {
@@ -215,6 +215,10 @@ export const BG = {
     error: {
       backendDown: 'Не достигам до бекенда. Стартирай го с `uvicorn app.main:app --port 8000`.',
       generic: 'Нещо се обърка: {error}',
+    },
+    batch: {
+      progress: 'Обработка на файлове… {done} от {total}',
+      summary: 'Готово: добавени {added} документа от {total} файла.',
     },
   },
 

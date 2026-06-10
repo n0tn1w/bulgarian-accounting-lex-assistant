@@ -57,11 +57,22 @@ export class WorkspaceStore {
   // in-browser preview before the server round-trip.
   readonly localFiles = signal<Map<string, string>>(new Map());
   private lastUploadedFile: File | null = null;
+  // external_ids whose original file is stored server-side (loaded on workspace init so
+  // the "open original" affordance survives a refresh, when localFiles is empty).
+  readonly filedDocs = signal<Set<string>>(new Set());
+
+  /** True when an original file for this document is available (local or on the server). */
+  hasFile(id: string): boolean {
+    return this.localFiles().has(id) || this.filedDocs().has(id);
+  }
 
   // search
   readonly searchHits = signal<SearchHit[]>([]);
   readonly searchQuery = signal('');
   readonly searching = signal(false);
+
+  // bulk upload progress ({done,total} while a batch runs, else null)
+  readonly batch = signal<{ done: number; total: number } | null>(null);
 
   readonly sortedConversations = computed(() =>
     [...this.conversations()].sort((a, b) => b.updatedAt - a.updatedAt),
@@ -138,6 +149,10 @@ export class WorkspaceStore {
       next: (r) => this.workingSet.set(r.invoices),
       error: () => {},
     });
+    this.api.listDocumentFiles().subscribe({
+      next: (r) => this.filedDocs.set(new Set(r.external_ids)),
+      error: () => {},
+    });
   }
 
   search(query: string): void {
@@ -176,6 +191,55 @@ export class WorkspaceStore {
     this.lastUploadedFile = file;  // consumed in applyTurn to register + persist the original
     this.pushUser(`📎 ${file.name}`);
     this.runTurn(() => this.assistant.handleFile(file, this.context()));
+  }
+
+  /** Bulk upload: extract + persist each file, register its original, then summarise.
+      A single file falls through to the conversational sendFile path. */
+  async sendFiles(files: File[]): Promise<void> {
+    const list = files.filter((f) => f.size > 0);
+    if (this.busy() || !list.length) return;
+    if (list.length === 1) { this.sendFile(list[0]); return; }
+
+    this.view.set('documents');
+    this.busy.set(true);
+    this.batch.set({ done: 0, total: list.length });
+    let added = 0;
+    let failed = 0;
+    let firstActive: Invoice | null = null;
+    for (const file of list) {
+      try {
+        const turn = await this.assistant.handleFile(file, this.context());
+        const active = turn.setActiveInvoice ?? turn.addInvoices?.[0] ?? null;
+        if (turn.addInvoices?.length) {
+          this.mergeInvoices(turn.addInvoices);
+          added += turn.addInvoices.length;
+          firstActive = firstActive ?? active;
+          if (active) this.registerLocalFile(active.id, file);
+          if (this.auth.isAuthed()) {
+            const id = active?.id;
+            this.api.persistInvoices(turn.addInvoices).subscribe({
+              next: () => { if (id) this.api.uploadDocumentFile(id, file).subscribe({ error: () => {} }); },
+              error: () => {},
+            });
+          }
+        } else {
+          failed += 1;
+        }
+      } catch {
+        failed += 1;
+      }
+      this.batch.update((b) => (b ? { ...b, done: b.done + 1 } : b));
+    }
+    if (firstActive) this.setActive(firstActive);
+    this.batch.set(null);
+    this.busy.set(false);
+    const summary = this.i18n.t('store.batch.summary', {
+      added: String(added), total: String(list.length), failed: String(failed),
+    });
+    this.updateActive((c) => ({
+      ...c,
+      messages: [...c.messages, { id: ++this.seq, role: 'assistant' as const, text: summary, cards: [], ts: Date.now() }],
+    }));
   }
 
   validateInvoice(invoice: Invoice): void {

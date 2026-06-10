@@ -36,15 +36,15 @@ export class DocumentsComponent {
   openFile(): void { this.fileEl()?.nativeElement.click(); }
   onFile(e: Event): void {
     const input = e.target as HTMLInputElement;
-    const f = input.files?.[0];
-    if (f) this.store.sendFile(f);
+    const files = Array.from(input.files ?? []);
+    if (files.length) this.store.sendFiles(files);
     input.value = '';
   }
   onDrop(e: DragEvent): void {
     e.preventDefault();
     this.dragging.set(false);
-    const f = e.dataTransfer?.files?.[0];
-    if (f) this.store.sendFile(f);
+    const files = Array.from(e.dataTransfer?.files ?? []);
+    if (files.length) this.store.sendFiles(files);
   }
   onDragOver(e: DragEvent): void { e.preventDefault(); this.dragging.set(true); }
   onDragLeave(): void { this.dragging.set(false); }

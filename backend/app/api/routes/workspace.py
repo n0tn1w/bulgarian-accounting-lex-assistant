@@ -88,6 +88,13 @@ async def upload_document_file(
     return {"id": str(fid), "size": len(data)}
 
 
+@router.get("/documents/files")
+def list_document_files(db: Session = Depends(get_tenant_db)) -> dict:
+    """external_ids of documents whose original file is stored, so the UI can show an
+    'open original' affordance even after a refresh (object URLs don't survive that)."""
+    return {"external_ids": ws.list_document_file_ids(db)}
+
+
 @router.get("/documents/{external_id}/file")
 def get_document_file(external_id: str, db: Session = Depends(get_tenant_db)) -> Response:
     """Return the original file for a document (tenant-scoped by RLS)."""

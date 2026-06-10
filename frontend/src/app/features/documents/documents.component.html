@@ -1,6 +1,22 @@
 <div class="docs-view" [class.drag]="dragging()"
      (drop)="onDrop($event)" (dragover)="onDragOver($event)" (dragleave)="onDragLeave()">
 
+  @if (store.batch(); as b) {
+    <div class="batch-bar">
+      <div class="batch-fill" [style.width.%]="b.total ? (b.done / b.total) * 100 : 0"></div>
+      <span class="batch-label">{{ 'store.batch.progress' | t: { done: b.done, total: b.total } }}</span>
+    </div>
+  }
+
+  @if (store.invoiceCount() > 0) {
+    <div class="docs-toolbar">
+      <span class="docs-count">{{ 'docs.company.invoices' | t: { count: store.invoiceCount() } }}</span>
+      <button class="btn sm" style="margin-left:auto" (click)="openFile()" [disabled]="store.busy()">
+        <app-icon name="plus" [size]="15" /> {{ 'docs.empty.add' | t }}
+      </button>
+    </div>
+  }
+
   @if (store.invoiceCount() === 0) {
     <div class="empty">
       <div class="glyph"><app-icon name="doc" [size]="34" [weight]="1.6" /></div>
@@ -29,6 +45,9 @@
                 <app-icon [name]="inv.source === 'xml' ? 'file' : 'doc'" [size]="15" />
                 <span class="t mono" style="font-size:13px">{{ inv.number || inv.id }}</span>
                 <span class="right" style="display:flex; gap:7px; align-items:center">
+                  @if (store.hasFile(inv.id)) {
+                    <span class="chip" style="padding:2px 6px" [title]="'docs.cell.hasFile' | t">📎</span>
+                  }
                   @if (avgConf(inv); as c) { <span class="chip" style="padding:2px 7px">{{ pct(c) }}</span> }
                   <button class="icon-btn" style="width:26px;height:26px;border-radius:7px"
                           [title]="'docs.cell.remove' | t" (click)="store.removeInvoice(inv.id)">
@@ -36,7 +55,8 @@
                   </button>
                 </span>
               </div>
-              <div class="card-body">
+              <div class="card-body" style="cursor:pointer" (click)="store.setActive(inv)"
+                   [title]="'docs.cell.select' | t">
                 <div class="kv-row"><span class="kv-label">{{ 'docs.cell.date' | t }}</span>
                   <span class="kv-val mono">{{ inv.date || '—' }}</span></div>
                 <div class="kv-row"><span class="kv-label">{{ 'docs.cell.counterparty' | t }}</span>
@@ -70,6 +90,6 @@
     }
   }
 
-  <input #file type="file" accept=".xml,.pdf,.txt,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,text/xml,application/pdf,text/plain,image/*"
+  <input #file type="file" multiple accept=".xml,.pdf,.txt,.jpg,.jpeg,.png,.tif,.tiff,.webp,.heic,text/xml,application/pdf,text/plain,image/*"
          (change)="onFile($event)" hidden />
 </div>

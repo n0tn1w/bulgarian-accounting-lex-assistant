@@ -129,3 +129,10 @@ def get_document_file(db: Session, external_id: str) -> DocumentFile | None:
         .scalars()
         .first()
     )
+
+
+def list_document_file_ids(db: Session) -> list[str]:
+    """external_ids of documents that have a stored original (RLS-scoped to the tenant),
+    so the UI can show an 'original available' affordance after a refresh."""
+    rows = db.execute(select(DocumentFile.external_id).distinct()).scalars().all()
+    return [r for r in rows if r]

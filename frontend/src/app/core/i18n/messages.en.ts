@@ -136,7 +136,7 @@ export const EN = {
       add: 'Add documents',
     },
     company: { invoices: '{count} invoices', unknown: 'Unknown company' },
-    cell: { date: 'Date', counterparty: 'Counterparty', validate: 'Validate', duplicates: 'Duplicates', remove: 'Remove' },
+    cell: { date: 'Date', counterparty: 'Counterparty', validate: 'Validate', duplicates: 'Duplicates', remove: 'Remove', select: 'Set as active', hasFile: 'Original available' },
   },
 
   search: {
@@ -215,6 +215,10 @@ export const EN = {
     error: {
       backendDown: 'I cannot reach the backend. Start it with `uvicorn app.main:app --port 8000`.',
       generic: 'Something went wrong: {error}',
+    },
+    batch: {
+      progress: 'Processing files… {done} of {total}',
+      summary: 'Done: added {added} documents from {total} files.',
     },
   },
 
