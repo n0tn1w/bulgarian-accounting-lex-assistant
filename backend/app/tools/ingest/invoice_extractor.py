@@ -268,40 +268,59 @@ def _apply_low_conf(field: ExtractedField, low_conf_tokens: set[str] | None) -> 
 # Tolerant separator: optional colon/dash, optional currency (BGN / лв / EUR), then amount.
 # Handles real layouts like "ОБЩА СТОЙНОСТ: BGN 141.60".
 _CUR = r"(?:BGN|лв\.?|лева|EUR|€|евро)?"
-_SEP = rf"\s*[:\-]?\s*{_CUR}\s*[:\-]?\s*"
+# Tolerant separator: optional colon/dash and an optional bracketed currency annotation
+# (": ", " [EUR]: ", " (лв): ") between the label and the amount.
+_SEP = rf"\s*[:\-\[\(]*\s*{_CUR}\s*[:\-\]\)]*\s*"
 # A monetary amount: integer part either run-together (30686.57) or grouped with
 # thousands separators (space / nbsp / dot / comma: "3,580.85", "2 259,90"), then a
 # 2-digit decimal. clean_amount() normalizes the locale afterwards.
 _AMT = r"(-?(?:\d{1,3}(?:[   .,]\d{3})+|\d+)[.,]\d{2})(?![./-]\d)"
 
 
-def _extract_amount(text: str, labels: list[str]) -> ExtractedField:
+_CUR_TOKENS = {"EUR": ("eur", "€", "евро"), "BGN": ("лв", "bgn", "лева")}
+_OPPOSITE = {"EUR": "BGN", "BGN": "EUR"}
+
+
+def _line_at(text: str, pos: int) -> str:
+    start = text.rfind("\n", 0, pos) + 1
+    end = text.find("\n", pos)
+    return text[start: end if end != -1 else len(text)]
+
+
+def _extract_amount(text: str, labels: list[str], currency: str | None = None) -> ExtractedField:
+    """Pull a labelled amount. On euro-transition invoices that print both EUR and BGN
+    (e.g. "Общо с ДДС [EUR]: 46.19" / "Общо с ДДС (лв): 90.34"), skip any value on a line
+    that carries the OTHER currency, so the figure stays in the invoice's currency."""
+    opp = _CUR_TOKENS.get(_OPPOSITE.get(currency or "", ""))
     for label in labels:
-        m = re.search(label + _SEP + _AMT, text, re.IGNORECASE)
-        if m:
+        for m in re.finditer(label + _SEP + _AMT, text, re.IGNORECASE):
+            if opp and any(t in _line_at(text, m.start()).lower() for t in opp):
+                continue
             amt = clean_amount(m.group(1))
             if amt is not None:
                 return ExtractedField(value=str(amt), confidence=_HIGH)
     return ExtractedField(value=None, confidence=0.0)
 
 
-def extract_net_amount(text: str) -> ExtractedField:
+def extract_net_amount(text: str, currency: str | None = None) -> ExtractedField:
     return _extract_amount(text, [
         r"Данъчна\s+основа",
         r"Сума\s+без\s+ДДС",
+        r"Общо\s+без\s+ДДС",
         r"Нето",
-        r"ОБЩО",  # subtotal line on standard BG invoices
-    ])
+        # a bare "Общо <amount>" subtotal, but NOT a total line ("Общо с ДДС", "Общо (BGN)").
+        r"Общо(?!\s*(?:с\s+ДДС|за\s+плащане|стойност|\(|\[))",
+    ], currency)
 
 
-def extract_vat_amount(text: str) -> ExtractedField:
+def extract_vat_amount(text: str, currency: str | None = None) -> ExtractedField:
     # only the explicitly labelled VAT amount; a bare "ДДС 20%" would capture the
     # rate, not the amount. when absent, the value is derived from total - net.
     return _extract_amount(text, [
         r"Размер\s+на\s+данъка",
         r"Начислен\s+ДДС",
         r"Сума\s+на\s+ДДС",
-    ])
+    ], currency)
 
 
 _TOTAL_LABELS = [
@@ -313,20 +332,25 @@ _TOTAL_LABELS = [
     r"Крайна\s+сума",
     r"Дължима\s+сума",
     r"Общо\s+за\s+плащане",
+    r"Обща\s+сума\s+с\s+ДДС",
+    r"Общо\s+с\s+ДДС",
+    r"Сума\s+с\s+ДДС",
     r"Общо\s*\(\s*BGN\s*\)",
 ]
 
 
-def extract_total_amount(text: str) -> ExtractedField:
-    f = _extract_amount(text, _TOTAL_LABELS)
+def extract_total_amount(text: str, currency: str | None = None) -> ExtractedField:
+    f = _extract_amount(text, _TOTAL_LABELS, currency)
     if f.value is not None:
         return f
     # Tolerant fallback: real layouts put a few words between the label and the amount
     # ("Обща стойност на фактурата 131.62", "Общо за плащане в лева: 3,580.85"). Allow a
-    # short non-digit gap on the same line.
+    # short non-digit gap; skip lines carrying the opposite currency on dual-currency docs.
+    opp = _CUR_TOKENS.get(_OPPOSITE.get(currency or "", ""))
     for label in _TOTAL_LABELS:
-        m = re.search(label + r"[^\d\n]{0,20}?" + _AMT, text, re.IGNORECASE)
-        if m:
+        for m in re.finditer(label + r"[^\d\n]{0,20}?" + _AMT, text, re.IGNORECASE):
+            if opp and any(t in _line_at(text, m.start()).lower() for t in opp):
+                continue
             amt = clean_amount(m.group(1))
             if amt is not None:
                 return ExtractedField(value=str(amt), confidence=_LOW)
@@ -342,15 +366,16 @@ def parse_invoice_fields(
     two companies' data; names fall back to a whole-document scan when a block is empty.
     """
     sup_block, rec_block = _split_party_blocks(text)
+    currency = detect_currency_text(text)  # amounts are picked in the invoice's currency
 
     fields = {
         "number": extract_invoice_number(text),
         "date": extract_date(text),
         "supplier_name": _apply_low_conf(extract_supplier_name(sup_block or text), low_conf_tokens),
         "recipient_name": _apply_low_conf(extract_recipient_name(rec_block or text), low_conf_tokens),
-        "net_amount": extract_net_amount(text),
-        "vat_amount": extract_vat_amount(text),
-        "total_amount": extract_total_amount(text),
+        "net_amount": extract_net_amount(text, currency),
+        "vat_amount": extract_vat_amount(text, currency),
+        "total_amount": extract_total_amount(text, currency),
     }
 
     sup_vat, rec_vat = _assign_owners(sup_block, rec_block, _all_vat(text), _all_vat)
