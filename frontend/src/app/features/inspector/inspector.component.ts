@@ -38,7 +38,7 @@ export class InspectorComponent {
   readonly DOC_TYPES: DocType[] = [
     'invoice', 'credit_note', 'debit_note', 'proforma', 'simplified_invoice', 'protocol',
     'fiscal_receipt', 'customs_declaration', 'bank_statement', 'goods_receipt',
-    'expense_report', 'other',
+    'expense_report', 'balance_confirmation', 'other',
   ].map((value) => ({ value, labelKey: `docType.${value}` }));
 
   extraKey = extraLabelKey;

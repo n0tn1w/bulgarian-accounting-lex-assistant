@@ -90,6 +90,7 @@ export const BG = {
     bank_statement: 'Банково извлечение',
     goods_receipt: 'Стокова разписка',
     expense_report: 'Авансов отчет',
+    balance_confirmation: 'Потвърждение на салда (одит)',
     other: 'Документ',
   },
 

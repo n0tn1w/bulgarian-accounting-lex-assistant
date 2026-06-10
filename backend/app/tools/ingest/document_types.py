@@ -18,6 +18,7 @@ class DocumentType(str, Enum):
     BANK_STATEMENT = "bank_statement"        # Банково извлечение
     GOODS_RECEIPT = "goods_receipt"          # Стокова / складова разписка
     EXPENSE_REPORT = "expense_report"        # Авансов отчет
+    BALANCE_CONFIRMATION = "balance_confirmation"  # Одиторско потвърждение на салда / разчети
     OTHER = "other"
 
 
@@ -46,6 +47,12 @@ _SPECIFIC_PRIMARY: list[tuple[DocumentType, tuple[str, ...]]] = [
     (DocumentType.GOODS_RECEIPT,
      ("стокова разписка", "складова разписка", "delivery note", "приемо-предавателен")),
     (DocumentType.EXPENSE_REPORT, ("авансов отчет", "отчет за разходи", "expense report")),
+    # Audit balance/turnover confirmation request — has a "Фактура №" schedule attached,
+    # so it must be caught before the invoice baseline.
+    (DocumentType.BALANCE_CONFIRMATION,
+     ("потвърдите салдата", "потвърждение на салд", "потвърждаване на салд", "салдата по разчети",
+      "одиторско потвърждение", "потвърждение на разчети", "balance confirmation",
+      "справка за фактурирани и неизплатени")),
 ]
 
 # Weaker, weighted signals used when no decisive phrase is found — e.g. an H1/CDS

@@ -90,6 +90,7 @@ export const EN = {
     bank_statement: 'Bank statement',
     goods_receipt: 'Goods receipt',
     expense_report: 'Expense report',
+    balance_confirmation: 'Balance confirmation (audit)',
     other: 'Document',
   },
 

@@ -60,7 +60,7 @@ export interface Invoice {
 const KNOWN_DOC_TYPES = [
   'invoice', 'credit_note', 'debit_note', 'proforma', 'simplified_invoice', 'protocol',
   'fiscal_receipt', 'customs_declaration', 'bank_statement', 'goods_receipt',
-  'expense_report', 'other',
+  'expense_report', 'balance_confirmation', 'other',
 ];
 
 /** i18n key for a document type label (translate in the template via the `t` pipe). */
@@ -75,7 +75,7 @@ export function extraLabelKey(key: string): string {
 
 /** Document types that carry monetary totals (so arithmetic validation applies). */
 export function docHasAmounts(t?: string | null): boolean {
-  return !['bank_statement', 'customs_declaration', 'goods_receipt', 'other'].includes(t ?? 'invoice');
+  return !['bank_statement', 'customs_declaration', 'goods_receipt', 'balance_confirmation', 'other'].includes(t ?? 'invoice');
 }
 
 export interface CompanyInfo {
