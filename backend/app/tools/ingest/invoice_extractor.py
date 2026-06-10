@@ -352,6 +352,7 @@ def extract_vat_amount(text: str, currency: str | None = None) -> ExtractedField
         r"Размер\s+на\s+данъка",
         r"Начислен\s+ДДС",
         r"Сума\s+на\s+ДДС",
+        r"Стойност\s+на\s+ДДС",
         r"B00\s*[-—–]?\s*ДДС",  # customs declaration VAT tax line: "B00 - ДДС 6148.18"
     ], currency)
 

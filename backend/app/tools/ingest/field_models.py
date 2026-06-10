@@ -96,11 +96,23 @@ def _best(model, cands, cls: str, min_proba: float):
 
 # --- runtime selection (returns verbatim values; None when no model/weak) ---
 
+_OPP_CUR = {"EUR": ("лв", "bgn", "лева"), "BGN": ("eur", "€", "евро")}
+
+
 def select_amounts(text: str) -> dict[str, str]:
     model = _models().get("amounts")
     if model is None:
         return {}
     cands = C.amount_candidates(text)
+    # On euro-transition invoices that print both currencies, drop candidates on lines in
+    # the OTHER currency so the selector can't pick the BGN equivalent of a EUR figure.
+    from app.tools.ingest.currency import detect_currency_text
+
+    opp = _OPP_CUR.get(detect_currency_text(text) or "")
+    if opp:
+        lines = text.split("\n")
+        kept = [c for c in cands if not any(t in lines[c.line_idx].lower() for t in opp)]
+        cands = kept or cands
     mp = get_settings().field_model_min_proba
     out: dict[str, str] = {}
     for cls in ("net", "vat", "total"):
