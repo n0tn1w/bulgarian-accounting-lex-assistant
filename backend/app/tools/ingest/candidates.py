@@ -28,7 +28,7 @@ _ROLE_RE = re.compile(
     r"доставчик|продавач|изпълнител|получател|купувач|клиент|износител|вносител",
     re.IGNORECASE,
 )
-_DATE_RE = re.compile(r"\d{1,2}[./]\d{1,2}[./]\d{4}|\d{4}[-.]\d{2}[-.]\d{2}")
+_DATE_RE = re.compile(r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}[-./]\d{1,2}[-./]\d{1,2}")
 _NUM_RE = re.compile(r"\b\d{6,15}\b")
 _TOKEN_RE = re.compile(r"[a-zа-я]+", re.IGNORECASE)
 

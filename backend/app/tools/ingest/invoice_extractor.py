@@ -62,15 +62,18 @@ def clean_amount(raw: str) -> Decimal | None:
 
 
 def normalize_date(raw: str) -> str:
-    """Normalize ``dd.mm.yyyy`` / ``dd/mm/yyyy`` / ``yyyy-mm-dd`` to ISO ``yyyy-mm-dd``."""
-    m = re.match(r"(\d{1,2})[./](\d{1,2})[./](\d{4})", raw)
+    """Normalize ``dd.mm.yyyy`` / ``dd/mm/yy`` / ``dd-mm-yy`` / ``yyyy-mm-dd`` to ISO
+    ``yyyy-mm-dd``. Two-digit years are read as 20yy (current accounting docs)."""
+    m = re.match(r"(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})", raw)
     if m:
         d, mo, y = m.groups()
+        if len(y) == 2:
+            y = "20" + y
         return f"{y}-{mo.zfill(2)}-{d.zfill(2)}"
-    m = re.match(r"(\d{4})[-.](\d{2})[-.](\d{2})", raw)
+    m = re.match(r"(\d{4})[-./](\d{1,2})[-./](\d{1,2})", raw)
     if m:
         y, mo, d = m.groups()
-        return f"{y}-{mo}-{d}"
+        return f"{y}-{mo.zfill(2)}-{d.zfill(2)}"
     return raw
 
 
@@ -125,16 +128,18 @@ def extract_invoice_number(text: str) -> ExtractedField:
     return ExtractedField(value=None, confidence=0.0)
 
 
+# dd.mm.yyyy / dd.mm.yy / dd-mm-yy / dd/mm/yyyy, or ISO yyyy-mm-dd. Two-digit years are
+# common on real invoices ("21.06.25"), so the year is \d{2,4} and the separators include "-".
+_DATE_PAT = r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}[-./]\d{1,2}[-./]\d{1,2}"
+
+
 def extract_date(text: str) -> ExtractedField:
-    labelled = [
-        r"Дата\s*[:\-]?\s*(\d{1,2}[./]\d{1,2}[./]\d{4})",
-        r"Date\s*[:\-]?\s*(\d{1,2}[./]\d{1,2}[./]\d{4})",
-    ]
-    for pat in labelled:
-        m = re.search(pat, text, re.IGNORECASE)
+    # Prefer an explicitly labelled issue date.
+    for label in (r"Дата\s+на\s+издаване", r"Дата\s+на\s+(?:дан[\.ъ][^:\n]{0,18})?събитие", r"Дата", r"Date", r"Issued"):
+        m = re.search(label + r"\s*[:\-]?\s*(" + _DATE_PAT + r")", text, re.IGNORECASE)
         if m:
             return ExtractedField(value=normalize_date(m.group(1)), confidence=_HIGH)
-    m = re.search(r"(\d{1,2}[./]\d{1,2}[./]\d{4}|\d{4}[-.]\d{2}[-.]\d{2})", text)
+    m = re.search(r"(" + _DATE_PAT + r")", text)
     if m:
         return ExtractedField(value=normalize_date(m.group(1)), confidence=_LOW)
     return ExtractedField(value=None, confidence=0.0)
