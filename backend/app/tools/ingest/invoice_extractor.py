@@ -352,6 +352,7 @@ def extract_vat_amount(text: str, currency: str | None = None) -> ExtractedField
         r"Размер\s+на\s+данъка",
         r"Начислен\s+ДДС",
         r"Сума\s+на\s+ДДС",
+        r"B00\s*[-—–]?\s*ДДС",  # customs declaration VAT tax line: "B00 - ДДС 6148.18"
     ], currency)
 
 
@@ -590,7 +591,11 @@ def extract_invoice_from_text(
     # corrupting invoices that carry non-taxable components (leasing, telecom balances)
     # where total != net + VAT by design. Deterministic arithmetic, so it stays auditable.
     n, v, t = invoice.net_amount, invoice.vat_amount, invoice.total_amount
-    if n is not None and t is not None and n != 0:  # n != 0 so credit notes (negative) work too
+    # Only fill/fix a weak VAT — never override one we read explicitly (e.g. a customs
+    # "B00 - ДДС" line), since the total may itself be a mis-picked figure. n != 0 so
+    # credit notes (negative) still reconcile.
+    if (n is not None and t is not None and n != 0
+            and invoice.field_confidence.get("vat_amount", 0.0) < _HIGH):
         derived = t - n
         rate = abs(derived / n)
         plausible = any(abs(rate - r) < Decimal("0.015") for r in (Decimal("0"), Decimal("0.09"), Decimal("0.20")))
