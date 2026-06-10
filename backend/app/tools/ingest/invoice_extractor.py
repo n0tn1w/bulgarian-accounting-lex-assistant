@@ -105,6 +105,12 @@ def _all_vat(text: str) -> list[str]:
             for m in re.findall(r"BG\s*\d{9,10}(?!\d)", text, re.IGNORECASE)]
 
 
+def _is_referenced(text: str, start: int) -> bool:
+    """True when the number at `start` is a citation of another document ("Към фактура
+    № X", "Възоснова на: X") rather than this document's own number."""
+    return bool(re.search(r"\bкъм\b|възоснова|to\s+invoice", text[max(0, start - 16):start], re.IGNORECASE))
+
+
 def extract_invoice_number(text: str) -> ExtractedField:
     exclude = _all_eik(text) | {v.removeprefix("BG") for v in _all_vat(text)}
     # OCR often garbles "№" into "Ne", "Ме", "No", "N°", so allow a few non-digit
@@ -114,16 +120,18 @@ def extract_invoice_number(text: str) -> ExtractedField:
         # протокол) followed by the number; tolerant of a garbled № marker
         r"(?:Фактура|Кредитно\s+известие|Дебитно\s+известие|Проформа(?:\s+фактура)?|"
         r"Опростена\s+фактура|Протокол)[^\d\n]{0,6}(\d{7,15})",
+        r"\bНомер\s*[:\-]?\s*(\d{6,15})",      # "Номер: 0000005002" / "Номер 0067915794"
+        r"\bNo\.?\s*[:\-]?\s*(\d{7,15})",      # "No. 0400153377"
         r"Invoice[^\d\n]{0,6}(\d{6,15})",
         r"№\s*[:\-]?\s*(\d{10,15})",
     ]
     for pat in labelled:
-        m = re.search(pat, text, re.IGNORECASE)
-        if m and m.group(1) not in exclude:
-            return ExtractedField(value=m.group(1), confidence=_HIGH)
+        for m in re.finditer(pat, text, re.IGNORECASE):
+            if m.group(1) not in exclude and not _is_referenced(text, m.start()):
+                return ExtractedField(value=m.group(1), confidence=_HIGH)
     # fallback: a standalone 10-digit number (common BG invoice shape)
     for m in re.finditer(r"\b(\d{10})\b", text):
-        if m.group(1) not in exclude:
+        if m.group(1) not in exclude and not _is_referenced(text, m.start()):
             return ExtractedField(value=m.group(1), confidence=_LOW)
     return ExtractedField(value=None, confidence=0.0)
 
