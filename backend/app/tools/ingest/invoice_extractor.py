@@ -111,6 +111,12 @@ def _is_referenced(text: str, start: int) -> bool:
     return bool(re.search(r"\bкъм\b|възоснова|to\s+invoice", text[max(0, start - 16):start], re.IGNORECASE))
 
 
+def _bogus_number(n: str) -> bool:
+    """A run of identical digits (000000…, 999999999999999) is a template placeholder, not
+    a real document number."""
+    return len(set(n)) <= 1
+
+
 def extract_invoice_number(text: str) -> ExtractedField:
     exclude = _all_eik(text) | {v.removeprefix("BG") for v in _all_vat(text)}
     # OCR often garbles "№" into "Ne", "Ме", "No", "N°", so allow a few non-digit
@@ -127,11 +133,11 @@ def extract_invoice_number(text: str) -> ExtractedField:
     ]
     for pat in labelled:
         for m in re.finditer(pat, text, re.IGNORECASE):
-            if m.group(1) not in exclude and not _is_referenced(text, m.start()):
+            if m.group(1) not in exclude and not _is_referenced(text, m.start()) and not _bogus_number(m.group(1)):
                 return ExtractedField(value=m.group(1), confidence=_HIGH)
     # fallback: a standalone 10-digit number (common BG invoice shape)
     for m in re.finditer(r"\b(\d{10})\b", text):
-        if m.group(1) not in exclude and not _is_referenced(text, m.start()):
+        if m.group(1) not in exclude and not _is_referenced(text, m.start()) and not _bogus_number(m.group(1)):
             return ExtractedField(value=m.group(1), confidence=_LOW)
     return ExtractedField(value=None, confidence=0.0)
 
@@ -479,6 +485,12 @@ def recover_parties(invoice: Invoice) -> Invoice:
         (invoice.supplier, "supplier_name", "supplier_vat"),
         (invoice.recipient, "recipient_name", "recipient_vat"),
     ):
+        # A BG company VAT is "BG" + EIK, so when only the VAT was read, derive the EIK
+        # from it (when checksum-valid) — that's enough to recover the name from the register.
+        if not party.eik and party.vat_number:
+            cand = re.sub(r"\D", "", party.vat_number)
+            if validate_eik(cand):
+                party.eik = cand
         if not validate_eik(party.eik or ""):
             continue
         info = lookup_company(party.eik)

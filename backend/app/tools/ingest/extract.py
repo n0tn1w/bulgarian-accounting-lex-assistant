@@ -60,9 +60,11 @@ def extract_from_pdf_bytes(
     source: str = "ocr",
     *,
     perspective: str = "auto",
+    use_vision: bool = True,
 ) -> Invoice:
-    """OCR a PDF then extract; consult the vision model when the scan is poor."""
-    return _ocr_then_extract(extract_ocr_from_pdf_bytes(content), doc_id, source, perspective)
+    """OCR a PDF then extract; consult the vision model when the scan is poor. The slow
+    vision fallback can be disabled (e.g. for bulk uploads) via use_vision=False."""
+    return _ocr_then_extract(extract_ocr_from_pdf_bytes(content), doc_id, source, perspective, use_vision)
 
 
 def extract_from_image_bytes(
@@ -71,16 +73,17 @@ def extract_from_image_bytes(
     source: str = "ocr",
     *,
     perspective: str = "auto",
+    use_vision: bool = True,
 ) -> Invoice:
     """OCR a photographed/scanned image then extract; same pipeline as a scanned PDF."""
-    return _ocr_then_extract(extract_ocr_from_image_bytes(content), doc_id, source, perspective)
+    return _ocr_then_extract(extract_ocr_from_image_bytes(content), doc_id, source, perspective, use_vision)
 
 
-def _ocr_then_extract(ocr, doc_id: str, source: str, perspective: str) -> Invoice:
+def _ocr_then_extract(ocr, doc_id: str, source: str, perspective: str, use_vision: bool = True) -> Invoice:
     invoice = extract_document(
         ocr.text, doc_id, source, perspective=perspective, low_conf_tokens=ocr.low_conf_tokens
     )
-    if should_use_vision(invoice, ocr.mean_conf):
+    if use_vision and should_use_vision(invoice, ocr.mean_conf):
         fields = extract_invoice_via_vision(ocr.page_images, doc_id)
         if fields:
             merge_into_invoice(invoice, fields)

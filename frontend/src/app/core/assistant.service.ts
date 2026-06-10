@@ -65,14 +65,14 @@ export class AssistantService {
     }
   }
 
-  async handleFile(file: File, ctx: ConvoContext): Promise<AssistantTurn> {
+  async handleFile(file: File, ctx: ConvoContext, vision = true): Promise<AssistantTurn> {
     const name = file.name.toLowerCase();
     if (name.endsWith('.xml') || file.type.includes('xml')) {
       return this.ingestXml(await file.text(), file.name.replace(/\.[^.]+$/, ''));
     }
     if (name.endsWith('.pdf') || file.type === 'application/pdf') {
       try {
-        const res = await firstValueFrom(this.api.extractPdf(file));
+        const res = await firstValueFrom(this.api.extractPdf(file, 'auto', vision));
         return this.afterExtract(res.invoice, this.t('assistant.read', { name: file.name }));
       } catch (e: any) {
         if (e?.status === 503) {
@@ -83,7 +83,7 @@ export class AssistantService {
     }
     if (/\.(jpe?g|png|tiff?|webp|heic|bmp)$/.test(name) || file.type.startsWith('image/')) {
       try {
-        const res = await firstValueFrom(this.api.extractImage(file));
+        const res = await firstValueFrom(this.api.extractImage(file, 'auto', vision));
         return this.afterExtract(res.invoice, this.t('assistant.read', { name: file.name }));
       } catch (e: any) {
         if (e?.status === 503) {

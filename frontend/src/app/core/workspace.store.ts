@@ -208,17 +208,24 @@ export class WorkspaceStore {
     let firstActive: Invoice | null = null;
     for (const file of list) {
       try {
-        const turn = await this.assistant.handleFile(file, this.context());
+        // Bulk path skips the slow vision fallback (vision=false) and does NOT hold a
+        // browser object URL per file — the original is stored server-side and previewed
+        // on demand, so a big batch can't exhaust tab memory.
+        const turn = await this.assistant.handleFile(file, this.context(), false);
         const active = turn.setActiveInvoice ?? turn.addInvoices?.[0] ?? null;
         if (turn.addInvoices?.length) {
           this.mergeInvoices(turn.addInvoices);
           added += turn.addInvoices.length;
           firstActive = firstActive ?? active;
-          if (active) this.registerLocalFile(active.id, file);
           if (this.auth.isAuthed()) {
             const id = active?.id;
             this.api.persistInvoices(turn.addInvoices).subscribe({
-              next: () => { if (id) this.api.uploadDocumentFile(id, file).subscribe({ error: () => {} }); },
+              next: () => {
+                if (id) {
+                  this.api.uploadDocumentFile(id, file).subscribe({ error: () => {} });
+                  this.filedDocs.update((s) => new Set(s).add(id));
+                }
+              },
               error: () => {},
             });
           }

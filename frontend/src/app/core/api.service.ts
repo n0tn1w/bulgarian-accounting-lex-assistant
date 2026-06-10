@@ -46,17 +46,19 @@ export class ApiService {
     return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-text`, { text, doc_id, source, perspective });
   }
 
-  extractPdf(file: File, perspective = 'auto'): Observable<InvoiceResponse> {
+  extractPdf(file: File, perspective = 'auto', vision = true): Observable<InvoiceResponse> {
     const form = new FormData();
     form.append('file', file, file.name);
     form.append('perspective', perspective);
+    form.append('vision', String(vision));  // bulk uploads pass false to skip the slow vision fallback
     return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-pdf`, form);
   }
 
-  extractImage(file: File, perspective = 'auto'): Observable<InvoiceResponse> {
+  extractImage(file: File, perspective = 'auto', vision = true): Observable<InvoiceResponse> {
     const form = new FormData();
     form.append('file', file, file.name);
     form.append('perspective', perspective);
+    form.append('vision', String(vision));
     return this.http.post<InvoiceResponse>(`${this.base}/documents/extract-image`, form);
   }
 

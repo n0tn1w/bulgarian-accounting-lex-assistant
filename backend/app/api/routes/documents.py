@@ -74,15 +74,17 @@ def company_lookup(eik: str) -> CompanyLookupResponse:
 async def extract_pdf(
     file: UploadFile = File(...),
     perspective: str = Form("auto"),
+    vision: bool = Form(True),
 ) -> InvoiceResponse:
     """OCR a PDF (Bulgarian+English), preprocess the pages, and extract structured
-    fields; a poor scan falls back to the vision model and the register."""
+    fields; a poor scan falls back to the vision model and the register. Set vision=false
+    (e.g. for bulk uploads) to skip the slow vision fallback."""
     if not ocr_status().get("available"):
         raise HTTPException(status_code=503, detail="OCR not available on this server")
     content = await file.read()
     doc_id = (file.filename or "invoice").rsplit(".", 1)[0]
     try:
-        invoice = extract_from_pdf_bytes(content, doc_id, source="ocr", perspective=perspective)
+        invoice = extract_from_pdf_bytes(content, doc_id, source="ocr", perspective=perspective, use_vision=vision)
     except Exception as exc:  # pragma: no cover - depends on OCR env
         raise HTTPException(status_code=422, detail=f"OCR failed: {exc}") from exc
     return InvoiceResponse(invoice=invoice)
@@ -92,16 +94,17 @@ async def extract_pdf(
 async def extract_image(
     file: UploadFile = File(...),
     perspective: str = Form("auto"),
+    vision: bool = Form(True),
 ) -> InvoiceResponse:
     """OCR a photographed/scanned image (JPG/PNG/TIFF…) — EXIF-corrected, preprocessed and
     column-reflowed like a PDF page — and extract structured fields; a poor photo falls
-    back to the vision model and the register."""
+    back to the vision model and the register. Set vision=false to skip it (bulk)."""
     if not ocr_status().get("available"):
         raise HTTPException(status_code=503, detail="OCR not available on this server")
     content = await file.read()
     doc_id = (file.filename or "image").rsplit(".", 1)[0]
     try:
-        invoice = extract_from_image_bytes(content, doc_id, source="ocr", perspective=perspective)
+        invoice = extract_from_image_bytes(content, doc_id, source="ocr", perspective=perspective, use_vision=vision)
     except Exception as exc:  # pragma: no cover - depends on OCR env
         raise HTTPException(status_code=422, detail=f"image OCR failed: {exc}") from exc
     return InvoiceResponse(invoice=invoice)
