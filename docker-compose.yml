@@ -63,6 +63,10 @@ services:
       # Containerized fallback model (the ollama service below).
       LLM_FALLBACK_MODEL:    ${LLM_FALLBACK_MODEL:-ollama/mistral}
       LLM_FALLBACK_API_BASE: ${LLM_FALLBACK_API_BASE:-http://ollama:11434}
+      # Self-hosted vision model (the ollama service) for poor scans / photos, used
+      # independently of the text LLM. Reads any image the deterministic OCR can't.
+      OCR_VISION_MODEL:    ${OCR_VISION_MODEL:-ollama/qwen2.5vl:7b}
+      OCR_VISION_API_BASE: ${OCR_VISION_API_BASE:-http://ollama:11434}
     depends_on:
       db:
         condition: service_healthy
@@ -92,7 +96,8 @@ services:
     networks:
       - ledgerly
 
-  # One-shot: pull the Mistral model into the ollama service on first boot, then exit.
+  # One-shot: pull the text (Mistral) and vision (Qwen2.5-VL) models into the ollama
+  # service on first boot, then exit.
   ollama-init:
     image: ollama/ollama:latest
     depends_on:
@@ -100,7 +105,7 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["/bin/sh", "-c", "ollama pull ${LLM_FALLBACK_PULL:-mistral}"]
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${LLM_FALLBACK_PULL:-mistral} && ollama pull ${OCR_VISION_PULL:-qwen2.5vl:7b}"]
     restart: "no"
     networks:
       - ledgerly

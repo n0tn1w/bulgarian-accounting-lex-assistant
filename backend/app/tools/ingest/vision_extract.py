@@ -25,8 +25,10 @@ _PROMPT = (
     "You read Bulgarian accounting documents. Return ONLY a JSON object with these "
     "string keys (use null when not present): number, date (ISO YYYY-MM-DD), "
     "supplier_name, supplier_vat, supplier_eik, recipient_name, recipient_vat, "
-    "recipient_eik, net_amount, vat_amount, total_amount, currency. Keep names exactly "
-    "as printed. Do not add commentary or code fences."
+    "recipient_eik, net_amount, vat_amount, total_amount, currency. Keep names and all "
+    "text in the ORIGINAL Bulgarian/Cyrillic exactly as printed — do not translate or "
+    "transliterate. Доставчик/Продавач/Изпълнител is the supplier; Получател/Купувач is "
+    "the recipient. Do not add commentary or code fences."
 )
 
 _STRING_FIELDS = (
@@ -90,8 +92,12 @@ def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> I
         invoice.number = fields["number"].value
         fc["number"] = _VISION_CONF
     if take("date"):
-        invoice.date = fields["date"].value
-        fc["date"] = _VISION_CONF
+        from .invoice_extractor import _valid_iso, normalize_date
+
+        iso = normalize_date(fields["date"].value)
+        if _valid_iso(iso):  # the model may return dd.mm.yyyy; normalise + sanity-check
+            invoice.date = iso
+            fc["date"] = _VISION_CONF
 
     for who, party in (("supplier", invoice.supplier), ("recipient", invoice.recipient)):
         touched = False
@@ -108,7 +114,9 @@ def merge_into_invoice(invoice: Invoice, fields: dict[str, ExtractedField]) -> I
             party.source = "vision"
 
     for key in _AMOUNT_FIELDS:
-        if take(key):
+        # Amounts stay deterministic/auditable: vision only FILLS an amount the rules left
+        # empty, it never overrides one already read (a model can misread a blurry figure).
+        if getattr(invoice, key) is None and fields.get(key) and fields[key].value:
             try:
                 setattr(invoice, key, Decimal(fields[key].value))
                 fc[key] = _VISION_CONF
@@ -136,9 +144,10 @@ def _vision_complete(model: str, images: list[bytes]) -> str:
         "temperature": 0,
         "timeout": s.llm_timeout,
     }
-    if s.llm_api_base:
-        kwargs["api_base"] = s.llm_api_base
-    if s.llm_api_key:
+    api_base = s.ocr_vision_api_base or s.llm_api_base
+    if api_base:
+        kwargs["api_base"] = api_base
+    if s.llm_api_key and not s.ocr_vision_api_base:  # a self-hosted vision base needs no key
         kwargs["api_key"] = s.llm_api_key
     resp = litellm.completion(**kwargs)
     msg = resp["choices"][0]["message"]

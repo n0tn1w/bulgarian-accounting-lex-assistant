@@ -141,15 +141,27 @@ def extract_invoice_number(text: str) -> ExtractedField:
 _DATE_PAT = r"\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}[-./]\d{1,2}[-./]\d{1,2}"
 
 
+def _valid_iso(s: str) -> bool:
+    """Reject impossible dates (garbled OCR like month 42 or year 2825) so a wrong date is
+    never reported — a later valid candidate or the vision/selector fallback wins instead."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", s or "")
+    if not m:
+        return False
+    y, mo, d = (int(x) for x in m.groups())
+    return 2000 <= y <= 2099 and 1 <= mo <= 12 and 1 <= d <= 31
+
+
 def extract_date(text: str) -> ExtractedField:
-    # Prefer an explicitly labelled issue date.
+    # Prefer an explicitly labelled issue date; skip any candidate that isn't a real date.
     for label in (r"Дата\s+на\s+издаване", r"Дата\s+на\s+(?:дан[\.ъ][^:\n]{0,18})?събитие", r"Дата", r"Date", r"Issued"):
-        m = re.search(label + r"\s*[:\-]?\s*(" + _DATE_PAT + r")", text, re.IGNORECASE)
-        if m:
-            return ExtractedField(value=normalize_date(m.group(1)), confidence=_HIGH)
-    m = re.search(r"(" + _DATE_PAT + r")", text)
-    if m:
-        return ExtractedField(value=normalize_date(m.group(1)), confidence=_LOW)
+        for m in re.finditer(label + r"\s*[:\-]?\s*(" + _DATE_PAT + r")", text, re.IGNORECASE):
+            iso = normalize_date(m.group(1))
+            if _valid_iso(iso):
+                return ExtractedField(value=iso, confidence=_HIGH)
+    for m in re.finditer(r"(" + _DATE_PAT + r")", text):
+        iso = normalize_date(m.group(1))
+        if _valid_iso(iso):
+            return ExtractedField(value=iso, confidence=_LOW)
     return ExtractedField(value=None, confidence=0.0)
 
 

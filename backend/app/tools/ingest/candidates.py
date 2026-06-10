@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from .invoice_extractor import _AMT, _COMPANY_SUFFIX, _clean_name, clean_amount, normalize_date
+from .invoice_extractor import _AMT, _COMPANY_SUFFIX, _clean_name, _valid_iso, clean_amount, normalize_date
 
 _AMT_RE = re.compile(_AMT)
 _VAT_RE = re.compile(r"BG\s*\d{9,10}(?!\d)", re.IGNORECASE)
@@ -171,7 +171,10 @@ def date_candidates(text: str) -> list[ValueCandidate]:
     total_lines = max(1, text.count("\n") + 1)
     out: list[ValueCandidate] = []
     for i, m in enumerate(_DATE_RE.finditer(text)):
-        c = ValueCandidate(value=normalize_date(m.group(0)), pos=m.start(), line_idx=_line_idx(text, m.start()))
+        iso = normalize_date(m.group(0))
+        if not _valid_iso(iso):  # skip garbled OCR dates (month 42, year 2825, …)
+            continue
+        c = ValueCandidate(value=iso, pos=m.start(), line_idx=_line_idx(text, m.start()))
         c.feats = {
             "line_frac": c.line_idx / total_lines,
             "order": float(i),

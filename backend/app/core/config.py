@@ -96,9 +96,12 @@ class Settings(BaseSettings):
     # down-weight them and try a register/vision recovery.
     ocr_word_conf_min: float = Field(default=0.60, alias="OCR_WORD_CONF_MIN")
 
-    # LLM vision fallback for poorly scanned pages (needs a vision-capable model).
+    # LLM vision fallback for poorly scanned pages / photos (needs a vision-capable model).
     ocr_vision_fallback: bool = Field(default=True, alias="OCR_VISION_FALLBACK")
     ocr_vision_model: str = Field(default="", alias="OCR_VISION_MODEL")  # "" -> reuse llm_model
+    # Where the vision model is served; lets a self-hosted vision model (e.g. ollama) be
+    # used independently of the text LLM. "" -> reuse llm_api_base.
+    ocr_vision_api_base: str = Field(default="", alias="OCR_VISION_API_BASE")
     # Page mean confidence below which the vision model is consulted.
     ocr_vision_conf_min: float = Field(default=0.75, alias="OCR_VISION_CONF_MIN")
 
