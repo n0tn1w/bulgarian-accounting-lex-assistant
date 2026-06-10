@@ -89,14 +89,23 @@ def detect_document_type(text: str) -> DocumentType:
     signals (incl. an MRN) catch format variants; the invoice baseline is the fallback."""
     t = (text or "").lower()
 
+    # An invoice template often lists BOTH "кредитно известие" and "дебитно известие" as
+    # options in its header — that's not a note, it's a (usually) plain фактура. A real
+    # credit/debit note names only its own type.
+    note_template = "кредитно известие" in t and "дебитно известие" in t
+
     for doc_type, keywords in _SPECIFIC_PRIMARY:
+        if note_template and doc_type in (DocumentType.CREDIT_NOTE, DocumentType.DEBIT_NOTE):
+            continue
         if any(k in t for k in keywords):
             return doc_type
 
     best_type, best_score = DocumentType.OTHER, 0
     for doc_type, signals in _SECONDARY_SIGNALS.items():
         score = sum(weight for kw, weight in signals if kw in t)
-        if doc_type is DocumentType.CUSTOMS_DECLARATION and _MRN_RE.search(text or ""):
+        # An MRN only counts as customs when other customs signals are also present —
+        # otherwise line-item product codes (e.g. "50IP29C01604005101") false-trigger it.
+        if doc_type is DocumentType.CUSTOMS_DECLARATION and score > 0 and _MRN_RE.search(text or ""):
             score += 4
         if score > best_score:
             best_type, best_score = doc_type, score

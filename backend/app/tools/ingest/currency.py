@@ -39,24 +39,52 @@ def currency_from_field_name(name: str | None) -> str | None:
     return None
 
 
+# Lines that merely state the EUR<->BGN conversion (transition notices) must not decide
+# the currency — they always mention euro even on a plain BGN invoice.
+_CONV_LINE = re.compile(
+    r"курс|превалут|изчислен|стойност\s+в\s+евро|1\s*(?:eur|€)\s*=|=\s*1[.,]95583", re.IGNORECASE
+)
+_TOTAL_LINE = re.compile(
+    r"(обща\s+стойност|общо\s+за\s+плащане|обща\s+сума\s+за\s+плащане|всичко\s+за\s+плащане|"
+    r"сума\s+за\s+плащане|крайна\s+сума)[^\n]*",
+    re.IGNORECASE,
+)
+
+
 def detect_currency_text(text: str) -> str | None:
-    """Currency of an OCR/plain-text invoice. The 'Словом:' unit is authoritative
-    (it spells out the legal amount), then the labelled total lines."""
+    """Currency of an OCR/plain-text invoice. Order: an explicit "Валута:" field, then the
+    'Словом:' legal-amount words, then the primary total line, then a majority vote — always
+    ignoring EUR/BGN conversion-notice lines (common on euro-transition invoices)."""
     if not text:
         return None
-    m = re.search(r"словом[^\n]*", text, re.IGNORECASE)
+    m = re.search(r"валута\s*[:\-]?\s*([A-Za-zА-Яа-я€]{2,})", text, re.IGNORECASE)
     if m:
+        c = normalize_currency(m.group(1))
+        if c:
+            return c
+    m = re.search(r"словом[^\n]*", text, re.IGNORECASE)
+    if m and not _CONV_LINE.search(m.group(0)):
         c = normalize_currency(m.group(0))
         if c:
             return c
-    for m in re.finditer(
-        r"(обща\s+стойност|всичко\s+за\s+плащане|сума\s+за\s+плащане|крайна\s+сума)[^\n]*",
-        text, re.IGNORECASE,
-    ):
+    for m in _TOTAL_LINE.finditer(text):
+        if _CONV_LINE.search(m.group(0)):
+            continue
         c = normalize_currency(m.group(0))
         if c:
             return c
-    return normalize_currency(text)
+    bgn = eur = 0
+    for line in text.splitlines():
+        if _CONV_LINE.search(line):
+            continue
+        c = normalize_currency(line)
+        if c == "BGN":
+            bgn += 1
+        elif c == "EUR":
+            eur += 1
+    if bgn or eur:
+        return "BGN" if bgn >= eur else "EUR"
+    return None
 
 
 def file_currency_hint(xml: str) -> str | None:

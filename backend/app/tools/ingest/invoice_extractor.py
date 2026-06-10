@@ -272,7 +272,7 @@ _SEP = rf"\s*[:\-]?\s*{_CUR}\s*[:\-]?\s*"
 # A monetary amount: integer part either run-together (30686.57) or grouped with
 # thousands separators (space / nbsp / dot / comma: "3,580.85", "2 259,90"), then a
 # 2-digit decimal. clean_amount() normalizes the locale afterwards.
-_AMT = r"(-?(?:\d{1,3}(?:[   .,]\d{3})+|\d+)[.,]\d{2})"
+_AMT = r"(-?(?:\d{1,3}(?:[   .,]\d{3})+|\d+)[.,]\d{2})(?![./-]\d)"
 
 
 def _extract_amount(text: str, labels: list[str]) -> ExtractedField:
