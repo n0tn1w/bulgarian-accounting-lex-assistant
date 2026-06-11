@@ -1,23 +1,28 @@
-# Invoice RAG — Phase 1 evaluation
+# Invoice RAG — Evaluation
 
-1. Ingest real sample invoices into a dedicated eval tenant (via the existing
-   `/documents/extract-*` + `/workspace/invoices` endpoints, or a seed script).
-2. Rebuild the index: `python scripts/rebuild_invoice_index.py <tenant_uuid>`.
-3. Label `eval_set.jsonl` (~50 Qs): for each, set `tool`, `relevant_ids`, and
-   `expected_total` where applicable. Distribution: 10 lookup / 10 filter /
-   10 aggregation / 10 semantic / 5 trend-compare / 5 refuse.
-4. Run: `python eval/run_eval.py <tenant_uuid>`.
-5. Baseline: compare against the naive `/chat` on the same questions.
+Synthetic, reproducible eval over 60 hand-authored invoices in a fixed eval tenant.
+Phase-1 (deterministic tools) + Phase-2 (the tool-calling agent).
 
-Metrics: numeric accuracy (sum/compare/filter exact-match), retrieval P@k/R@k/MRR
-(semantic), citation precision/recall.
+## Setup (once)
+    python scripts/seed_eval_tenant.py        # seeds 60 synthetic invoices + indexes (~2-3 min)
 
-## Phase 2 — agent eval
+## Phase 1 — tool correctness (deterministic, ~2 min)
+    python eval/run_eval.py
+Numeric accuracy (sum/compare) + retrieval P@k/R@k/MRR (filter/lookup/semantic).
+`tests/test_eval_phase1_consistency.py` guards the labels against fixture drift.
 
-With `LLM_MODEL` set and the index built:
-`LLM_MODEL=<model> python eval/run_eval_agent.py <tenant_uuid> 3`
+## Phase 2 — agent (needs a model; ~10-20 min at k=1)
+    LLM_MODEL=groq/llama-3.3-70b-versatile python eval/run_eval_agent.py "" 1
+Routing accuracy, refusal calibration, compliance accuracy (correct verdict + cited article).
 
-Reports routing accuracy (did the agent call the labeled tool), refusal calibration,
-and prints the tools called per question. The LLM is non-deterministic — `k`>1 runs
-each question multiple times. Compare against the naive retrieve-and-stuff baseline
-via the existing `run_eval.py`.
+## Laws RAG (Partner B's extension point)
+    python eval/run_eval_laws.py
+Add cases to `eval_set_laws.jsonl` (`{"query": ..., "relevant": ["ЗДДС Чл. 66"]}`);
+the runner reuses `eval/metrics.py`, so results print in the same format.
+
+## Files
+- `metrics.py`, `cases.py` — shared (also imported by the laws runner)
+- `fixtures/invoices.py` — the 60 synthetic invoices
+- `eval_set.jsonl` — 56 labeled invoice + compliance questions
+- `eval_set_laws.jsonl` — laws-retrieval cases (Partner B)
+- `run_eval.py` / `run_eval_agent.py` / `run_eval_laws.py` — the three runners
