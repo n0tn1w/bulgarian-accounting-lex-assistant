@@ -8,6 +8,17 @@
     </button>
   </div>
 
+  @if (auth.isAdmin()) {
+    <div class="docs-toolbar" style="justify-content:flex-end">
+      @if (reindexNote()) { <span class="docs-count">{{ reindexNote() | t }}</span> }
+      <button class="btn ghost sm" (click)="reindex()" [disabled]="reindexing()"
+              [title]="'laws.reindex.title' | t">
+        <app-icon name="spark" [size]="14" />
+        {{ (reindexing() ? 'laws.reindex.running' : 'laws.reindex.button') | t }}
+      </button>
+    </div>
+  }
+
   @if (loading()) {
     <div class="typing" style="justify-content:center; margin-top:40px"><i></i><i></i><i></i></div>
   } @else if (searched() && results().length === 0) {

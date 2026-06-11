@@ -158,6 +158,10 @@ export const EN = {
     searching: 'Searching…',
     noMatch: 'No legislation matched that query.',
     empty: { title: 'Search Bulgarian <em>law</em>.', body: 'Hybrid search over scraped legislation (ЗДДС, ЗКПО, ЗДДФЛ, КСО, ЗСч, ДОПК and more), article by article, with citations that link back to lex.bg.' },
+    reindex: {
+      button: 'Reload laws', running: 'Reloading…', title: 'Re-scrape the legislation now (also auto-refreshes every 168h).',
+      started: 'Reload started — rebuilding in the background.', already: 'A rebuild is already running.', failed: 'Reload failed.',
+    },
   },
 
   auth: {

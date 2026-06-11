@@ -10,10 +10,12 @@ from __future__ import annotations
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import Principal, get_principal, get_tenant_db
+from app.db.models import User
 from app.api.schemas import (
     ChatRequest,
     ChatResponse,
@@ -28,6 +30,35 @@ from invoice_rag.tools.search import semantic_search
 
 router = APIRouter(tags=["rag"])
 logger = logging.getLogger(__name__)
+
+
+def require_admin(
+    principal: Principal = Depends(get_principal),
+    db: Session = Depends(get_tenant_db),
+) -> Principal:
+    """Admin-only gate: the tenant owner/admin. Used for maintenance actions hidden from
+    normal users (e.g. rebuilding the laws index)."""
+    user = db.execute(select(User).where(User.id == principal.user_id)).scalar_one_or_none()
+    if not user or user.role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="admin only")
+    return principal
+
+
+@router.get("/lex/status")
+def lex_status(_: Principal = Depends(require_admin)) -> dict:
+    """Laws-index state for the admin panel (exists / building / age in seconds)."""
+    from app.rag import lex_index
+
+    return lex_index.index_status()
+
+
+@router.post("/lex/reindex")
+def lex_reindex(_: Principal = Depends(require_admin)) -> dict:
+    """Manually rebuild the laws index now (re-scrapes legislation). Runs in the background
+    — the scheduled 168h refresh still happens automatically; this is just an on-demand kick."""
+    from app.rag import lex_index
+
+    return lex_index.trigger_rebuild()
 
 
 def _invoice_chunks(db: Session, tenant_id: uuid.UUID, query: str, top_k: int) -> list[RetrievedChunk]:

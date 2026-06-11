@@ -14,6 +14,7 @@ export class AuthService {
   readonly token = signal<string | null>(localStorage.getItem(TOKEN_KEY));
   readonly user = signal<AuthUser | null>(null);
   readonly isAuthed = computed(() => !!this.user());
+  readonly isAdmin = computed(() => ['owner', 'admin'].includes(this.user()?.role ?? ''));
   readonly ready = signal(false); // true once we've tried to restore a session
 
   private setSession(res: TokenResponse): void {

@@ -75,6 +75,17 @@ export class ApiService {
       `${this.base}/workspace/documents/${encodeURIComponent(externalId)}/file`, form);
   }
 
+  /** Laws-index state (admin only). */
+  lexStatus(): Observable<{ exists: boolean; building: boolean; seconds_since_build: number | null }> {
+    return this.http.get<{ exists: boolean; building: boolean; seconds_since_build: number | null }>(
+      `${this.base}/lex/status`);
+  }
+
+  /** Trigger a manual rebuild of the laws index (admin only). */
+  lexReindex(): Observable<{ started: boolean; building: boolean }> {
+    return this.http.post<{ started: boolean; building: boolean }>(`${this.base}/lex/reindex`, {});
+  }
+
   /** external_ids of documents whose original file is stored server-side. */
   listDocumentFiles(): Observable<{ external_ids: string[] }> {
     return this.http.get<{ external_ids: string[] }>(`${this.base}/workspace/documents/files`);

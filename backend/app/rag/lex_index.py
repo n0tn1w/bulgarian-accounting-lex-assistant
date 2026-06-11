@@ -122,3 +122,32 @@ def start() -> None:
         "lex index maintenance started (refresh every %sh)",
         settings.lex_refresh_interval_hours,
     )
+
+
+def is_building() -> bool:
+    """A rebuild is in progress (a fresh lock is held)."""
+    try:
+        return _LOCK.exists() and (time.time() - _LOCK.stat().st_mtime) <= _LOCK_TTL
+    except OSError:
+        return False
+
+
+def index_status() -> dict:
+    """Snapshot for the admin UI: whether the index exists, is building, and its age."""
+    secs = _seconds_since_build()
+    return {
+        "exists": _index_exists(),
+        "building": is_building(),
+        "seconds_since_build": None if secs == float("inf") else int(secs),
+    }
+
+
+def trigger_rebuild() -> dict:
+    """Start a manual rebuild in a background daemon thread (the same lock-guarded build
+    the scheduler uses). No-op if a build is already running. Returns immediately."""
+    if is_building():
+        return {"started": False, "building": True}
+    threading.Thread(
+        target=_build_guarded, args=("manual reload",), daemon=True, name="lex-reindex"
+    ).start()
+    return {"started": True, "building": True}
