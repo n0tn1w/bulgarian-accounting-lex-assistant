@@ -10,6 +10,13 @@
 
   @if (auth.isAdmin()) {
     <div class="docs-toolbar" style="justify-content:flex-end">
+      @if (lexState(); as st) {
+        <span class="docs-count">
+          @if (st.building) { ⏳ {{ 'laws.reindex.building' | t }} }
+          @else if (st.exists) { ✓ {{ 'laws.reindex.ready' | t }}@if (ageLabel()) { ({{ ageLabel() }}) } }
+          @else { ⚠ {{ 'laws.reindex.none' | t }} }
+        </span>
+      }
       @if (reindexNote()) { <span class="docs-count">{{ reindexNote() | t }}</span> }
       <button class="btn ghost sm" (click)="reindex()" [disabled]="reindexing()"
               [title]="'laws.reindex.title' | t">

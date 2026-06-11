@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 
 import { ApiService } from '../../core/api.service';
@@ -7,6 +7,8 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { RetrievedChunk } from '../../core/models';
 import { IconComponent } from '../../ui/icon.component';
 
+type LexState = { exists: boolean; building: boolean; seconds_since_build: number | null };
+
 @Component({
   selector: 'app-laws',
   standalone: true,
@@ -14,7 +16,7 @@ import { IconComponent } from '../../ui/icon.component';
   imports: [IconComponent, TranslatePipe],
   templateUrl: './laws.component.html',
 })
-export class LawsComponent {
+export class LawsComponent implements OnInit {
   private api = inject(ApiService);
   readonly auth = inject(AuthService);
 
@@ -26,6 +28,11 @@ export class LawsComponent {
   // admin-only: rebuild the laws index on demand (the 168h refresh still runs automatically)
   reindexing = signal(false);
   reindexNote = signal('');
+  lexState = signal<LexState | null>(null);
+
+  ngOnInit(): void {
+    if (this.auth.isAdmin()) this.refreshStatus();
+  }
 
   async reindex(): Promise<void> {
     if (this.reindexing()) return;
@@ -38,7 +45,31 @@ export class LawsComponent {
       this.reindexNote.set('laws.reindex.failed');
     } finally {
       this.reindexing.set(false);
+      this.pollStatus();  // watch the build to completion and reflect it in the status line
     }
+  }
+
+  private async refreshStatus(): Promise<void> {
+    try { this.lexState.set(await firstValueFrom(this.api.lexStatus())); } catch { /* ignore */ }
+  }
+
+  /** Poll the index status until the build stops (or we give up after ~3 min). */
+  private pollStatus(tries = 12): void {
+    void this.refreshStatus().then(() => {
+      if (this.lexState()?.building && tries > 0) {
+        setTimeout(() => this.pollStatus(tries - 1), 15000);
+      }
+    });
+  }
+
+  /** Coarse "time since last successful build" for the status line. */
+  ageLabel(): string {
+    const s = this.lexState()?.seconds_since_build;
+    if (s == null) return '';
+    if (s < 90) return `${Math.round(s)}s`;
+    if (s < 5400) return `${Math.round(s / 60)}m`;
+    if (s < 172800) return `${Math.round(s / 3600)}h`;
+    return `${Math.round(s / 86400)}d`;
   }
 
   onInput(e: Event): void { this.query.set((e.target as HTMLInputElement).value); }

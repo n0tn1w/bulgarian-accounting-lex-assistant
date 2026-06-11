@@ -161,6 +161,7 @@ export const EN = {
     reindex: {
       button: 'Reload laws', running: 'Reloading…', title: 'Re-scrape the legislation now (also auto-refreshes every 168h).',
       started: 'Reload started — rebuilding in the background.', already: 'A rebuild is already running.', failed: 'Reload failed.',
+      building: 'Rebuilding…', ready: 'Index ready', none: 'No index yet',
     },
   },
 
