@@ -41,6 +41,10 @@ def litellm_complete(messages: list[dict], tools: list[dict]) -> dict:
         "tools": tools,
         "temperature": s.llm_temperature,
         "timeout": s.llm_timeout,
+        # LiteLLM retries on a rate-limit/transient error with exponential backoff,
+        # honoring each provider's Retry-After. Provider-agnostic, so switching models
+        # needs no code change. Helps production chat too, not just the eval.
+        "num_retries": s.llm_num_retries,
     }
     if api_base:
         kwargs["api_base"] = api_base

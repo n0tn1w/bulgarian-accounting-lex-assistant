@@ -9,6 +9,7 @@ Usage:  LLM_MODEL=... python eval/run_eval_agent.py [tenant_uuid] [k]
 from __future__ import annotations
 
 import os
+import random
 import sys
 import time
 import uuid
@@ -21,6 +22,22 @@ from eval.cases import load_cases
 from eval.fixtures.invoices import EVAL_TENANT_ID
 
 EVAL_PATH = "eval/eval_set.jsonl"
+
+
+def _agent_call(db, tenant_id: str, question: str, model: str, retries: int = 6):
+    """Run the agent, backing off only on a normalized rate-limit error (any provider,
+    via LiteLLM) if LiteLLM's own per-call retries are still exhausted. Honors the
+    provider's Retry-After when present. Real errors propagate immediately."""
+    import litellm
+
+    for attempt in range(retries):
+        try:
+            return run_agent(db, uuid.UUID(tenant_id), question, [], model=model)
+        except litellm.RateLimitError as exc:
+            if attempt == retries - 1:
+                raise
+            wait = getattr(exc, "retry_after", None) or min(2 ** attempt + random.random(), 60)
+            time.sleep(wait)
 
 
 def score_case(c, ans) -> dict:
@@ -44,22 +61,18 @@ def main(tenant_id: str, k: int = 1) -> None:
         raise SystemExit("set LLM_MODEL for the agent eval")
     db = SessionLocal()
     db.execute(text("SELECT set_config('app.current_tenant', :t, true)"), {"t": tenant_id})
+    delay = float(os.environ.get("EVAL_REQUEST_DELAY", "0"))  # proactive pacing for tight tiers
     route_hit = route_tot = ref_ok = ref_tot = comp_ok = comp_tot = 0
     for c in load_cases(EVAL_PATH):
         for _ in range(k):
-            for attempt in range(4):
-                try:
-                    ans = run_agent(db, uuid.UUID(tenant_id), c.question, [], model=model)
-                    break
-                except Exception:
-                    if attempt == 3:
-                        raise
-                    time.sleep(2 ** attempt)
+            ans = _agent_call(db, tenant_id, c.question, model)
             s = score_case(c, ans)
             if "refusal_ok" in s: ref_tot += 1; ref_ok += s["refusal_ok"]
             if "compliance_ok" in s: comp_tot += 1; comp_ok += s["compliance_ok"]
             if "routing_ok" in s: route_tot += 1; route_hit += s["routing_ok"]
             print(f"[{c.category}] #{c.id} tools={s.get('tools')} refused={s.get('refused')}")
+            if delay:
+                time.sleep(delay)
     if route_tot: print(f"\nrouting accuracy:   {route_hit}/{route_tot} = {route_hit/route_tot:.0%}")
     if ref_tot:   print(f"refusal calibration:{ref_ok}/{ref_tot} = {ref_ok/ref_tot:.0%}")
     if comp_tot:  print(f"compliance accuracy:{comp_ok}/{comp_tot} = {comp_ok/comp_tot:.0%}")

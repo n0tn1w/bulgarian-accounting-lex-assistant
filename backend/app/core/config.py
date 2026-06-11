@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     llm_api_key: str = Field(default="", alias="LLM_API_KEY")
     llm_temperature: float = Field(default=0.2, alias="LLM_TEMPERATURE")
     llm_timeout: int = Field(default=60, alias="LLM_TIMEOUT")
+    # LiteLLM retries each completion on a normalized RateLimitError (any provider),
+    # backing off and honoring the provider's Retry-After. Model-agnostic — bump it
+    # for tight free tiers (e.g. Groq), leave low for generous/paid models.
+    llm_num_retries: int = Field(default=6, alias="LLM_NUM_RETRIES")
 
     # Fallback model used when no hosted llm_model is configured. In Docker this is the
     # bundled `ollama` Mistral container, so the app has a working LLM out of the box
