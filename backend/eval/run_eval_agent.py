@@ -1,51 +1,71 @@
-"""Phase-2 eval: routing + refusal calibration for the agent, vs the naive baseline.
+"""Phase-2 eval: agent routing + refusal + compliance, vs the synthetic set.
 
 Runs each labeled question through the AGENT (needs LLM_MODEL set) k times and
-reports routing accuracy (did it call the labeled tool) and refusal calibration.
-Compare against the naive retrieve-and-stuff baseline via the existing run_eval.py.
+reports routing accuracy (did it call the labeled tool), refusal calibration, and
+compliance accuracy (correct verdict + cited article).
 
-Usage:  LLM_MODEL=... python eval/run_eval_agent.py <tenant_uuid> [k]
+Usage:  LLM_MODEL=... python eval/run_eval_agent.py [tenant_uuid] [k]
 """
 from __future__ import annotations
 
-import json
+import os
 import sys
+import time
 import uuid
-from pathlib import Path
 
 from sqlalchemy import text
 
 from app.db.base import SessionLocal
-from invoice_rag.agent import run as run_agent
+from app.rag import run as run_agent
+from eval.cases import load_cases
+from eval.fixtures.invoices import EVAL_TENANT_ID
 
-EVAL_PATH = Path(__file__).parent / "eval_set.jsonl"
+EVAL_PATH = "eval/eval_set.jsonl"
+
+
+def score_case(c, ans) -> dict:
+    called = [t["tool"] for t in (ans.tool_trace or [])]
+    out = {"id": c.id, "category": c.category, "tools": called, "refused": ans.refused}
+    if c.category == "refuse":
+        out["refusal_ok"] = bool(ans.refused)
+    elif c.category == "compliance":
+        article_token = c.expected.get("article", "").split()[-1].lower()
+        cited = article_token in (ans.reply or "").lower()
+        out["routing_ok"] = "query_law" in called
+        out["compliance_ok"] = ("query_law" in called) and cited
+    elif c.tool:
+        out["routing_ok"] = c.tool in called
+    return out
 
 
 def main(tenant_id: str, k: int = 1) -> None:
+    model = os.environ.get("LLM_MODEL", "")
+    if not model:
+        raise SystemExit("set LLM_MODEL for the agent eval")
     db = SessionLocal()
     db.execute(text("SELECT set_config('app.current_tenant', :t, true)"), {"t": tenant_id})
-    rows = [json.loads(l) for l in EVAL_PATH.read_text(encoding="utf-8").splitlines() if l.strip()]
-    routing_hits = total = refusal_ok = refusal_total = 0
-    for r in rows:
-        expected_tool, should_refuse = r.get("tool"), r["category"] == "refuse"
+    route_hit = route_tot = ref_ok = ref_tot = comp_ok = comp_tot = 0
+    for c in load_cases(EVAL_PATH):
         for _ in range(k):
-            ans = run_agent(db, uuid.UUID(tenant_id), r["question"], history=[], model="eval")
-            called = [t["tool"] for t in ans.tool_trace]
-            if should_refuse:
-                refusal_total += 1
-                refusal_ok += 1 if ans.refused else 0
-            elif expected_tool:
-                total += 1
-                routing_hits += 1 if expected_tool in called else 0
-            print(f"[{r['category']}] {r['question']!r} -> tools={called} refused={ans.refused}")
-    if total:
-        print(f"\nrouting accuracy: {routing_hits}/{total} = {routing_hits/total:.0%}")
-    if refusal_total:
-        print(f"refusal calibration: {refusal_ok}/{refusal_total} = {refusal_ok/refusal_total:.0%}")
+            for attempt in range(4):
+                try:
+                    ans = run_agent(db, uuid.UUID(tenant_id), c.question, [], model=model)
+                    break
+                except Exception:
+                    if attempt == 3:
+                        raise
+                    time.sleep(2 ** attempt)
+            s = score_case(c, ans)
+            if "refusal_ok" in s: ref_tot += 1; ref_ok += s["refusal_ok"]
+            if "compliance_ok" in s: comp_tot += 1; comp_ok += s["compliance_ok"]
+            if "routing_ok" in s: route_tot += 1; route_hit += s["routing_ok"]
+            print(f"[{c.category}] #{c.id} tools={s.get('tools')} refused={s.get('refused')}")
+    if route_tot: print(f"\nrouting accuracy:   {route_hit}/{route_tot} = {route_hit/route_tot:.0%}")
+    if ref_tot:   print(f"refusal calibration:{ref_ok}/{ref_tot} = {ref_ok/ref_tot:.0%}")
+    if comp_tot:  print(f"compliance accuracy:{comp_ok}/{comp_tot} = {comp_ok/comp_tot:.0%}")
     db.close()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        raise SystemExit("usage: LLM_MODEL=... python eval/run_eval_agent.py <tenant_uuid> [k]")
-    main(sys.argv[1], int(sys.argv[2]) if len(sys.argv) > 2 else 1)
+    main(sys.argv[1] if len(sys.argv) > 1 else str(EVAL_TENANT_ID),
+         int(sys.argv[2]) if len(sys.argv) > 2 else 1)
