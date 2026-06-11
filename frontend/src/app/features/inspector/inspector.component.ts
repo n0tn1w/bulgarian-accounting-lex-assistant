@@ -73,9 +73,26 @@ export class InspectorComponent {
     return docHasAmounts(inv.doc_type);
   }
 
-  /** Send a suggested action's prompt in the active language. */
-  runSuggested(promptKey: string): void {
-    this.store.sendText(this.i18n.t(promptKey));
+  /** Send a suggested action's prompt, grounded on the active invoice's actual fields
+      so the agent reasons about THIS document instead of guessing which one "this" is. */
+  runSuggested(promptKey: string, inv: Invoice): void {
+    this.store.ask(`${this.invoiceFacts(inv)} ${this.i18n.t(promptKey)}`);
+  }
+
+  /** Compact factual summary of the active invoice, prepended to suggested-action
+      prompts so "тази фактура / this invoice" refers to concrete data, not a search guess. */
+  private invoiceFacts(inv: Invoice): string {
+    const cur = inv.currency || 'BGN';
+    const parts = [
+      inv.number ? `№ ${inv.number}` : null,
+      inv.date ? `от ${inv.date}` : null,
+      inv.supplier?.name ? `доставчик ${inv.supplier.name}` : null,
+      inv.recipient?.name ? `получател ${inv.recipient.name}` : null,
+      inv.net_amount ? `данъчна основа ${inv.net_amount} ${cur}` : null,
+      inv.vat_amount ? `ДДС ${inv.vat_amount} ${cur}` : null,
+      inv.total_amount ? `обща стойност ${inv.total_amount} ${cur}` : null,
+    ].filter(Boolean);
+    return `Данни за активната фактура: ${parts.join(', ')}.`;
   }
 
   /** Actions proposed for the document, tailored to its type. */

@@ -185,6 +185,15 @@ export class WorkspaceStore {
     this.runTurn(() => this.assistant.handleText(text, this.context()));
   }
 
+  /** Explicit question straight to the chat orchestrator, skipping the text router's
+      invoice-detection heuristic (used by the inspector's grounded suggested actions). */
+  ask(text: string): void {
+    if (!text.trim() || this.busy()) return;
+    this.view.set('assistant');
+    this.pushUser(text);
+    this.runTurn(() => this.assistant.ask(text, this.context()));
+  }
+
   sendFile(file: File): void {
     if (this.busy()) return;
     this.view.set('assistant');

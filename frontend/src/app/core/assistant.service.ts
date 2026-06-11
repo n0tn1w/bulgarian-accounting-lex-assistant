@@ -48,6 +48,13 @@ export class AssistantService {
     return this.askLLM(text, ctx);
   }
 
+  // Explicit question → straight to the chat orchestrator, bypassing handleText's
+  // pasted-invoice heuristic. The inspector's grounded prompts mention invoice fields
+  // and would otherwise be misrouted to extraction instead of answered by the LLM.
+  ask(message: string, ctx: ConvoContext): Promise<AssistantTurn> {
+    return this.askLLM(message, ctx);
+  }
+
   // Free-form question via /chat (both RAGs + the LLM), rendered with sources.
   private async askLLM(message: string, ctx: ConvoContext): Promise<AssistantTurn> {
     try {

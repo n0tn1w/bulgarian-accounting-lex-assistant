@@ -62,7 +62,7 @@
 
       <div class="suggested">
         @for (a of suggestedActions(inv); track a.labelKey) {
-          <button class="btn ghost sm" (click)="runSuggested(a.promptKey)" [disabled]="store.busy()">
+          <button class="btn ghost sm" (click)="runSuggested(a.promptKey, inv)" [disabled]="store.busy()">
             <app-icon name="spark" [size]="13" /> {{ a.labelKey | t }}
           </button>
         }
