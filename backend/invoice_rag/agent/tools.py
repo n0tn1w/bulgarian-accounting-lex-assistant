@@ -30,7 +30,7 @@ def _object(properties: dict, required: list[str] | None = None) -> dict:
 
 
 _FILTER_PROPS = {
-    "vendor": {"type": "string", "description": "counterparty name, partial match"},
+    "vendor": {"type": "string", "description": "company name to filter by — a client company or a counterparty; partial match"},
     "period": {"type": "string", "description": "natural-language date range, e.g. 'this quarter', 'last month', 'ytd', 'last year'"},
     "date_from": {"type": "string", "description": "ISO YYYY-MM-DD (use instead of period for exact ranges)"},
     "date_to": {"type": "string", "description": "ISO YYYY-MM-DD"},
@@ -39,7 +39,7 @@ _FILTER_PROPS = {
     "currency": {"type": "string", "description": "e.g. BGN, EUR"},
     "country": {"type": "string", "description": "supplier country, e.g. 'Germany', 'DE'"},
     "vat_rate": {"type": "number", "description": "exact VAT rate as a fraction, e.g. 0.20 for 20%"},
-    "direction": {"type": "string", "enum": ["purchase", "sale"], "description": "purchase = money out, sale = money in"},
+    "direction": {"type": "string", "enum": ["purchase", "sale"], "description": "sale = invoices a company issued (its revenue); purchase = invoices a company received (its expense)"},
     "reverse_charge": {"type": "boolean"},
     "doc_type": {"type": "string"},
     "weekend_only": {"type": "boolean", "description": "invoices issued on a weekend"},
