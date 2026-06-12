@@ -1594,7 +1594,7 @@ section.demo .sub { text-align: center; color: #C9D2C8; }
   <div class="arrow">→</div>
   <div class="col">
     <div class="box sm sage"><b>BGE-M3 → ChromaDB</b><small>плътен вектор · HNSW</small></div>
-    <div class="box sm gold"><b>BM25</b><small>разреден · BG токенизатор</small></div>
+    <div class="box sm gold"><b>BM25 индекс</b><small>оригинални чанкове + токенизирана форма · BG токенизатор</small></div>
   </div>
 </div>
 <div class="arch-down">↓</div>
@@ -1604,7 +1604,7 @@ section.demo .sub { text-align: center; color: #C9D2C8; }
   <div class="arrow">→</div>
   <div class="box sm sage"><b>Хибридно търсене</b><small>dense + BM25 → RRF</small></div>
   <div class="arrow">→</div>
-  <div class="box sm"><b>Cross-encoder</b><small>BGE-reranker v2-m3</small></div>
+  <div class="box sm"><b>Cross-encoder</b><small>BGE-reranker v2-m3 · прецизно пренареждане на кандидатите</small></div>
   <div class="arrow">→</div>
   <div class="box sm dark"><b>Топ-5 + цитати</b><small>Чл./ал./т. · отказ при липса</small></div>
 </div>
@@ -1835,12 +1835,12 @@ section.demo .sub { text-align: center; color: #C9D2C8; }
   </div>
   <div class="evalcard r2">
     <h3>RAG 2 — Закони</h3>
-    <div class="sub2">извличане · P / R / MRR@8 · 16 случая</div>
-    <div class="mrow"><span class="lbl">Намерен верен член (recall@8)</span><span class="val gold">—</span></div>
-    <div class="mrow"><span class="lbl">Среден MRR</span><span class="val gold">—</span></div>
-    <div class="mrow"><span class="lbl">Точност@8 (precision)</span><span class="val gold">—</span></div>
-    <div class="mrow"><span class="lbl">Покритие (ЗДДС · ЗКПО · ЗДДФЛ · КСО)</span><span class="val gold">—</span></div>
-    <div class="evaltotal">Общо · —/16</div>
+    <div class="sub2">извличане · P / R / MRR@8 · 50 случая</div>
+    <div class="mrow"><span class="lbl">Намерен верен член (recall@8)</span><span class="val gold">66.0%</span></div>
+    <div class="mrow"><span class="lbl">Среден MRR</span><span class="val gold">0.4873</span></div>
+    <div class="mrow"><span class="lbl">Точност@8 (precision)</span><span class="val gold">14.00%</span></div>
+    <div class="mrow"><span class="lbl">ЗДДС 78.6% · ЗКПО 58.3% · ЗДДФЛ 72.7% · КСО 53.8%</span><span class="val gold">покритие</span></div>
+    <div class="evaltotal">Общо · 33/50</div>
   </div>
 </div>
 <div class="lead-italic">Синтетичен, възпроизводим набор; всяка стойност се смята детерминирано. Phase 2 (агент): маршрутизиране · отказ · цитиране на член — отделна оценка.</div>
