@@ -68,6 +68,19 @@ def _build_index() -> None:
     import torch
 
     torch.backends.mps.is_available = lambda: False
+    # Cap CPU threads so embedding ~20k chunks doesn't saturate every core and starve the
+    # single uvicorn worker — otherwise the app stops responding (Cloudflare 5xx) for the
+    # whole build. Leave at least one core for the web loop; LEX_BUILD_THREADS overrides.
+    try:
+        import os
+
+        env = os.environ.get("LEX_BUILD_THREADS")
+        threads = int(env) if env else max(1, (os.cpu_count() or 2) // 2)
+        torch.set_num_threads(threads)
+        logger.info("lex build limited to %d CPU threads", threads)
+    except Exception:  # pragma: no cover - torch/env quirks
+        pass
+
     from rag.ingest import IngestPipeline
 
     n = IngestPipeline().run(reset=True)
