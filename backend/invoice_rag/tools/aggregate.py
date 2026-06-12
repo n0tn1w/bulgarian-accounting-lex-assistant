@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.db.models import StoredInvoice
 from invoice_rag.models import FilterParams, GroupBy, SumGroup, SumResult
 from invoice_rag.retrieval.hybrid import _row_to_view
-from invoice_rag.tools.filter import apply_filters
+from invoice_rag.tools.filter import apply_filters, effective_direction
 
 
 def _group_key(r: StoredInvoice, group_by: GroupBy) -> str:
@@ -34,7 +34,7 @@ def _group_key(r: StoredInvoice, group_by: GroupBy) -> str:
     if group_by == "country":
         return (r.supplier_vat or "")[:2] or "unknown"
     if group_by == "direction":
-        return r.payload.get("direction", "unknown")
+        return effective_direction(r.payload)
     return "all"
 
 

@@ -1,13 +1,40 @@
 """Tool: parameterized SQL filter over the tenant's invoices."""
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import StoredInvoice
 from invoice_rag.dates import parse_period
 from invoice_rag.models import FilterParams, InvoiceView
 from invoice_rag.retrieval.hybrid import _row_to_view
+
+
+def effective_direction(payload: dict) -> str:
+    """Direction with a fallback: when ingest left it 'unknown', derive it from the
+    invoice perspective — if our own company is the supplier the invoice is a SALE,
+    if we're the recipient it's a PURCHASE. (perspective: supplier|recipient|auto.)"""
+    d = (payload or {}).get("direction")
+    if d in ("sale", "purchase"):
+        return d
+    p = (payload or {}).get("perspective")
+    if p == "supplier":
+        return "sale"
+    if p == "recipient":
+        return "purchase"
+    return "unknown"
+
+
+def _direction_expr():
+    """SQL mirror of effective_direction() for use in WHERE/filters."""
+    d = StoredInvoice.payload["direction"].astext
+    p = StoredInvoice.payload["perspective"].astext
+    return case(
+        (d.in_(["sale", "purchase"]), d),
+        (p == "supplier", "sale"),
+        (p == "recipient", "purchase"),
+        else_="unknown",
+    )
 
 
 def _resolve_dates(f: FilterParams) -> tuple[str | None, str | None]:
@@ -53,7 +80,10 @@ def apply_filters(stmt, f: FilterParams):
     if f.doc_type:
         stmt = stmt.where(StoredInvoice.payload["doc_type"].astext == f.doc_type)
     if f.direction:
-        stmt = stmt.where(StoredInvoice.payload["direction"].astext == f.direction)
+        # Match on the DERIVED direction so invoices ingest left 'unknown' are
+        # resolved from perspective (supplier=sale, recipient=purchase) instead of
+        # being silently dropped — which looked like "company not found".
+        stmt = stmt.where(_direction_expr() == f.direction)
     if f.reverse_charge is not None:
         val = "true" if f.reverse_charge else "false"
         stmt = stmt.where(StoredInvoice.payload["reverse_charge"].astext == val)
