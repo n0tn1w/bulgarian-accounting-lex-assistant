@@ -380,7 +380,7 @@ style: |
 
 <div class="phase">Индексиране (офлайн)</div>
 <div class="arch tight">
-  <div class="box sm"><b>lex.bg → НАП</b><small>скрейпинг + кеш</small></div>
+  <div class="box sm"><b>ЗДДС · ЗКПО · ЗДДФЛ · КСО · ЗСч · ДОПК · ЗМДТ · ЗЗО · ППЗДДС · ППЗАДС · КТ</b><small>скрейпинг + кеш</small></div>
   <div class="arrow">→</div>
   <div class="box sm"><b>Чънкване</b><small>Чл. / ал. / т.</small></div>
   <div class="arrow">→</div>
