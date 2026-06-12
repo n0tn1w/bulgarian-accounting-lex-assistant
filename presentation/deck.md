@@ -202,6 +202,12 @@ style: |
   .mrow .val.gold { color: var(--gold); }
   .evaltotal { margin-top: 10px; text-align: right; font-family: var(--serif); font-weight: 700; color: var(--green); font-size: 19px; }
   .evalcard.r2 .evaltotal { color: var(--gold); }
+  .agentrow { display: flex; gap: 18px; margin-top: 14px; }
+  .stat { flex: 1; border: 1.5px solid #D8D2BF; background: #FBFAF4; border-radius: 12px; padding: 10px 14px; text-align: center; }
+  .stat .num { font-family: var(--serif); font-weight: 700; font-size: 28px; color: var(--green); line-height: 1.1; }
+  .stat .num.warn { color: var(--gold); }
+  .stat .frac { font-size: 14px; color: #888; }
+  .stat .cap { font-size: 13.5px; color: #555; margin-top: 2px; }
 
   /* ---------- 2-col cards (value) ---------- */
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 22px; margin-top: 10px; }
@@ -380,7 +386,7 @@ style: |
   <div class="arrow">→</div>
   <div class="col">
     <div class="box sm sage"><b>BGE-M3 → ChromaDB</b><small>плътен вектор · HNSW</small></div>
-    <div class="box sm gold"><b>BM25</b><small>разреден · BG токенизатор</small></div>
+    <div class="box sm gold"><b>BM25 индекс</b><small>оригинални чанкове + токенизирана форма · BG токенизатор</small></div>
   </div>
 </div>
 
@@ -392,7 +398,7 @@ style: |
   <div class="arrow">→</div>
   <div class="box sm sage"><b>Хибридно търсене</b><small>dense + BM25 → RRF</small></div>
   <div class="arrow">→</div>
-  <div class="box sm"><b>Cross-encoder</b><small>BGE-reranker v2-m3</small></div>
+  <div class="box sm"><b>Cross-encoder</b><small>BGE-reranker v2-m3 · прецизно пренареждане на кандидатите</small></div>
   <div class="arrow">→</div>
   <div class="box sm dark"><b>Топ-5 + цитати</b><small>Чл./ал./т. · отказ при липса</small></div>
 </div>
@@ -410,26 +416,22 @@ style: |
 <div class="evalgrid">
   <div class="evalcard r1">
     <h3>RAG 1 — Фактури</h3>
-    <div class="sub2">детерминирани инструменти · 46 случая · без LLM</div>
-    <div class="mrow"><span class="lbl">Търсене по номер</span><span class="val">100%</span></div>
-    <div class="mrow"><span class="lbl">Филтри (recall + брой)</span><span class="val">100%</span></div>
-    <div class="mrow"><span class="lbl">Агрегации (±0.01 лв.)</span><span class="val">100%</span></div>
-    <div class="mrow"><span class="lbl">Семантично (recall@10 / MRR)</span><span class="val">100% / 1.0</span></div>
-    <div class="mrow"><span class="lbl">Тренд / сравнение</span><span class="val">100%</span></div>
-    <div class="evaltotal">Общо · 46/46 = 100%</div>
+    <div class="sub2">tool-calling агент · claude-haiku-4-5 · 56 въпроса</div>
+    <div class="mrow"><span class="lbl">Маршрутизиране (recall)</span><span class="val">90% · 47/52</span></div>
+    <div class="mrow"><span class="lbl">Отказ при извън-обхват (recall)</span><span class="val">100% · 4/4</span></div>
+    <div class="mrow"><span class="lbl">Съответствие — верен член + цитат</span><span class="val gold">50% · 3/6</span></div>
+    <div class="evaltotal">верен инструмент → верен отговор</div>
   </div>
   <div class="evalcard r2">
     <h3>RAG 2 — Закони</h3>
-    <div class="sub2">извличане · P / R / MRR@8 · 16 случая</div>
-    <div class="mrow"><span class="lbl">Намерен верен член (recall@8)</span><span class="val gold">—</span></div>
-    <div class="mrow"><span class="lbl">Среден MRR</span><span class="val gold">—</span></div>
-    <div class="mrow"><span class="lbl">Точност@8 (precision)</span><span class="val gold">—</span></div>
-    <div class="mrow"><span class="lbl">Покритие (ЗДДС · ЗКПО · ЗДДФЛ · КСО)</span><span class="val gold">—</span></div>
-    <div class="evaltotal">Общо · —/16</div>
+    <div class="sub2">извличане · Recall / MRR / Hit@1 · 50 случая</div>
+    <div class="mrow"><span class="lbl">Намерен верен член (recall@8)</span><span class="val gold">66.0%</span></div>
+    <div class="mrow"><span class="lbl">Среден MRR</span><span class="val gold">0.4873</span></div>
+    <div class="mrow"><span class="lbl">Първи резултат е верен (Hit@1)</span><span class="val gold">38.0%</span></div>
+    <div class="mrow"><span class="lbl">ЗДДС 78.6% · ЗКПО 58.3% · ЗДДФЛ 72.7% · КСО 53.8%</span><span class="val gold">покритие</span></div>
+    <div class="evaltotal">Общо · 33/50</div>
   </div>
 </div>
-
-<div class="lead-italic">Синтетичен, възпроизводим набор; всяка стойност се смята детерминирано. Phase 2 (агент): маршрутизиране · отказ · цитиране на член — отделна оценка.</div>
 
 ---
 
