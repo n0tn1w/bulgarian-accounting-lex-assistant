@@ -18,7 +18,10 @@ export const BG = {
       laws: 'ДДС и закони',
       docsMeta: '{inv} фактури · {comp} фирми',
     },
-    status: { up: 'Бекендът е свързан', down: 'Бекендът е недостъпен', checking: 'Свързване…' },
+    status: {
+      up: 'Бекендът е свързан', down: 'Бекендът е недостъпен', checking: 'Свързване…',
+      llmUp: 'Модел: {model}', llmDown: 'Моделът е недостъпен: {model}', llmNone: 'Няма свързан модел',
+    },
     action: { new: 'Нов', addDocuments: 'Добави документи', signOut: 'Изход', deleteChat: 'Изтрий разговора' },
     convo: { messages: '{count} съобщения · {date}' },
     modal: { allConversations: 'Всички разговори', total: '{count} общо' },

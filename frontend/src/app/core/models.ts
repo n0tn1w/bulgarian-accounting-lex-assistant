@@ -150,7 +150,8 @@ export interface ExtractXmlResponse {
 export interface InvoiceResponse { invoice: Invoice; }
 export interface ValidateResponse { invoice_id: string; results: ValidationResult[]; is_valid: boolean; }
 export interface DuplicatesResponse { matches: DuplicateMatch[]; }
-export interface HealthResponse { status: string; version: string; ocr: Record<string, unknown>; }
+export interface LlmStatus { configured: boolean; connected: boolean; model: string; source: string; }
+export interface HealthResponse { status: string; version: string; ocr: Record<string, unknown>; llm?: LlmStatus; }
 export interface TokenResponse { access_token: string; token_type: string; user: AuthUser; }
 export interface WorkspaceInvoicesResponse { invoices: Invoice[]; }
 export interface GroupResponse { groups: CompanyGroup[]; }

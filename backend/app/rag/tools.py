@@ -35,10 +35,35 @@ _QUERY_LAW_SCHEMA = {
 
 TOOL_SCHEMAS = [*INVOICE_TOOL_SCHEMAS, _QUERY_LAW_SCHEMA]
 
+# Tools whose params carry a `direction` (sale|purchase) filter.
+_DIRECTION_TOOLS = frozenset({"filter_invoices", "sum_invoices", "compare_periods"})
+# Word stems that unambiguously signal a direction in BG/EN. Stems (not whole
+# words) so inflections are covered: продажба/продажби/продажбите, разход/разходи…
+_SALE_STEMS = ("продажб", "приход", "издаден", "sale", "revenue", "income")
+_PURCHASE_STEMS = ("покупк", "разход", "похарч", "получен", "purchase", "expense", "spent")
 
-def make_dispatch(db: Session, tenant_id: uuid.UUID):
-    """dispatch(name, args) over invoices + laws, bound to this tenant session."""
+
+def _infer_direction(message: str) -> str | None:
+    """Backstop for weak models that drop `direction` from tool calls: read it
+    from the user's own words. Returns None unless exactly one side is present,
+    so a question naming both (or neither) leaves the filter open."""
+    m = (message or "").lower()
+    sale = any(s in m for s in _SALE_STEMS)
+    purchase = any(s in m for s in _PURCHASE_STEMS)
+    if sale and not purchase:
+        return "sale"
+    if purchase and not sale:
+        return "purchase"
+    return None
+
+
+def make_dispatch(db: Session, tenant_id: uuid.UUID, message: str = ""):
+    """dispatch(name, args) over invoices + laws, bound to this tenant session.
+
+    `message` is the user's question; used only to backfill `direction` on invoice
+    tools when the model omits it (never to override a direction it did set)."""
     invoice_dispatch = make_invoice_dispatch(db, tenant_id)
+    inferred_direction = _infer_direction(message)
 
     def dispatch(name: str, args: dict) -> Any:
         if name == "query_law":
@@ -47,6 +72,8 @@ def make_dispatch(db: Session, tenant_id: uuid.UUID):
                 return [c.model_dump() for c in chunks]
             except Exception as exc:
                 return {"error": f"{type(exc).__name__}: {exc}"}
+        if name in _DIRECTION_TOOLS and inferred_direction and not args.get("direction"):
+            args = {**args, "direction": inferred_direction}
         return invoice_dispatch(name, args)
 
     return dispatch

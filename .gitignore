@@ -43,3 +43,6 @@ backend/invoice_rag/storage/
 /data/
 backend/data/
 *.joblib
+
+docker-compose.override.yml
+docs/

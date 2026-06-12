@@ -89,6 +89,19 @@ export class AppComponent {
     return h === 'up' ? 'app.status.up' : h === 'down' ? 'app.status.down' : 'app.status.checking';
   }
 
+  /** i18n key for the LLM model line (only shown once health is known). */
+  llmStatusKey(): string {
+    const l = this.store.llm();
+    if (!l || !l.configured) return 'app.status.llmNone';
+    return l.connected ? 'app.status.llmUp' : 'app.status.llmDown';
+  }
+
+  /** Model id without the provider prefix, e.g. 'ollama/qwen2.5:7b' -> 'qwen2.5:7b'. */
+  llmModel(): string {
+    const m = this.store.llm()?.model ?? '';
+    return m.includes('/') ? m.slice(m.indexOf('/') + 1) : m;
+  }
+
   openFile(): void {
     const sel = this.store.view() === 'documents'
       ? 'app-documents input[type=file]'

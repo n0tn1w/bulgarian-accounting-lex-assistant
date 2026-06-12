@@ -22,6 +22,7 @@ class HealthResponse(BaseModel):
     status: str = "ok"
     version: str
     ocr: dict[str, object]
+    llm: dict[str, object] = {}
 
 
 class ExtractXmlRequest(BaseModel):

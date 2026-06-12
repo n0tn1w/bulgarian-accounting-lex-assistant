@@ -6,7 +6,7 @@ import { AuthService } from './auth.service';
 import { I18nService } from './i18n/i18n.service';
 import { AssistantTurn, ChatMessage, Conversation, ConvoContext } from './chat';
 import { groupInvoices } from './grouping';
-import { Invoice, SearchHit } from './models';
+import { Invoice, LlmStatus, SearchHit } from './models';
 
 type Health = 'up' | 'down' | 'checking';
 type View = 'assistant' | 'documents' | 'search' | 'laws';
@@ -51,6 +51,7 @@ export class WorkspaceStore {
   readonly workingSet = signal<Invoice[]>([]);
   readonly busy = signal(false);
   readonly health = signal<Health>('checking');
+  readonly llm = signal<LlmStatus | null>(null);
   readonly view = signal<View>('assistant');
 
   // Object URLs of just-uploaded originals, keyed by invoice domain id, for instant
@@ -173,8 +174,14 @@ export class WorkspaceStore {
   checkHealth(): void {
     this.health.set('checking');
     this.api.health().subscribe({
-      next: () => this.health.set('up'),
-      error: () => this.health.set('down'),
+      next: (res) => {
+        this.health.set('up');
+        this.llm.set(res.llm ?? null);
+      },
+      error: () => {
+        this.health.set('down');
+        this.llm.set(null);
+      },
     });
   }
 

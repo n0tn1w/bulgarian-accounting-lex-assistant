@@ -28,6 +28,36 @@ def resolve_llm() -> tuple[str, str, str]:
     return "", "", ""
 
 
+def _endpoint_reachable(api_base: str, timeout: float = 1.5) -> bool:
+    """True if the model endpoint answers at all (any HTTP reply, even 404, means
+    the server is up). Best-effort and short-timeout so /health never hangs."""
+    import urllib.error
+    import urllib.request
+
+    try:
+        urllib.request.urlopen(api_base, timeout=timeout)
+        return True
+    except urllib.error.HTTPError:
+        return True  # server responded (e.g. 404) -> reachable
+    except Exception:
+        return False
+
+
+def llm_status() -> dict:
+    """Report the chat model and whether it's reachable, for /health.
+
+    A local model (own api_base, no key — e.g. Ollama) is pinged with a short
+    timeout. A hosted model (api key) is reported connected when configured, since
+    truly verifying it would cost a real completion call. No model -> the echo stub.
+    """
+    model, api_base, api_key = resolve_llm()
+    if not model:
+        return {"configured": False, "connected": False, "model": "", "source": "none"}
+    source = "local" if api_base and not api_key else "hosted"
+    connected = _endpoint_reachable(api_base) if source == "local" else True
+    return {"configured": True, "connected": connected, "model": model, "source": source}
+
+
 def litellm_complete(messages: list[dict], tools: list[dict]) -> dict:
     """Default `complete` callable for the tool loop. Normalizes a LiteLLM
     completion into {"content", "tool_calls"} (OpenAI/LiteLLM shape)."""

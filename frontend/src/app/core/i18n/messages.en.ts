@@ -18,7 +18,10 @@ export const EN = {
       laws: 'VAT & laws',
       docsMeta: '{inv} invoices · {comp} companies',
     },
-    status: { up: 'Backend connected', down: 'Backend offline', checking: 'Connecting…' },
+    status: {
+      up: 'Backend connected', down: 'Backend offline', checking: 'Connecting…',
+      llmUp: 'Model: {model}', llmDown: 'Model unreachable: {model}', llmNone: 'No model connected',
+    },
     action: { new: 'New', addDocuments: 'Add documents', signOut: 'Sign out', deleteChat: 'Delete chat' },
     convo: { messages: '{count} messages · {date}' },
     modal: { allConversations: 'All conversations', total: '{count} total' },

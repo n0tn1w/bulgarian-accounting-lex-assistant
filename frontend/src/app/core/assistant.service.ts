@@ -42,9 +42,11 @@ export class AssistantService {
     }
 
     if (/\b(help|what can you|capabilities)/.test(lower)) return this.help();
-    if (this.looksLikeInvoice(text)) return this.ingestText(text);
-    // everything else is a grounded question for the chat orchestrator
-    // (invoices RAG + laws RAG into the LLM)
+    // Everything typed (that isn't one of the explicit commands above) is a
+    // grounded request for the chat orchestrator — the agent decides whether to
+    // look up an invoice, aggregate, search, or answer from the laws RAG. We do
+    // NOT try to guess "is this a pasted invoice" from free text: documents are
+    // added via file upload (handleFile), which is unambiguous.
     return this.askLLM(text, ctx);
   }
 
@@ -190,10 +192,6 @@ export class AssistantService {
 
   private note(text: string, tone: 'info' | 'warn' = 'info'): AssistantTurn {
     return { text: '', cards: [{ type: 'note', tone, text }] };
-  }
-
-  private looksLikeInvoice(text: string): boolean {
-    return text.length > 24 && /(фактура|invoice|ддс|vat|еик|обща стойност|данъчна основа|total)/i.test(text);
   }
 
   private makeId(prefix: string): string {

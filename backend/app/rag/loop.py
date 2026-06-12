@@ -39,6 +39,7 @@ def run_tool_loop(
 ) -> LoopResult:
     messages = list(messages)  # work on a copy — never mutate the caller's list
     calls: list[ToolCall] = []
+    seen: dict[tuple[str, str], Any] = {}  # (name, args) -> result; dedups repeat calls
     for _ in range(max_steps):
         msg = complete(messages, tool_schemas)
         tool_calls = msg.get("tool_calls")
@@ -46,14 +47,26 @@ def run_tool_loop(
             return LoopResult(final_text=msg.get("content") or "", calls=calls)
         # echo the assistant turn (with its tool_calls) back into the transcript
         messages.append({"role": "assistant", "content": msg.get("content"), "tool_calls": tool_calls})
+        progressed = False  # did this step issue any NEW tool call?
         for tc in tool_calls:
             fn = tc["function"]
             args = json.loads(fn.get("arguments") or "{}")
-            result = dispatch(fn["name"], args)
-            calls.append(ToolCall(name=fn["name"], args=args, result=result))
+            sig = (fn["name"], json.dumps(args, sort_keys=True, default=str))
+            if sig in seen:
+                result = seen[sig]  # identical call already made — reuse, don't re-record
+            else:
+                result = dispatch(fn["name"], args)
+                seen[sig] = result
+                calls.append(ToolCall(name=fn["name"], args=args, result=result))
+                progressed = True
             messages.append({
                 "role": "tool",
                 "tool_call_id": tc["id"],
                 "content": json.dumps(result, default=str),
             })
-    return LoopResult(final_text="", calls=calls)  # hit the cap
+        if not progressed:
+            # The model only re-issued calls it already made — it's looping without
+            # progress (a weaker model can get stuck repeating a lookup instead of
+            # writing the final answer). Stop with what we have; one card, not five.
+            break
+    return LoopResult(final_text="", calls=calls)  # hit the cap or stopped looping

@@ -65,6 +65,15 @@
             [class.wait]="store.health() === 'checking'"></span>
           <span>{{ statusKey() | t }}</span>
         </div>
+        @if (store.llm(); as llm) {
+          <div class="status">
+            <span class="dot"
+              [class.up]="llm.connected"
+              [class.down]="llm.configured && !llm.connected"
+              [class.wait]="!llm.configured"></span>
+            <span [title]="llm.model">{{ llmStatusKey() | t: { model: llmModel() } }}</span>
+          </div>
+        }
       </div>
     </aside>
 

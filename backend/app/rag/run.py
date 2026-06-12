@@ -28,6 +28,6 @@ def run(
     fake. `model` is surfaced in the response for transparency."""
     complete = complete or litellm_complete
     messages = build_messages(message, history)
-    dispatch = make_dispatch(db, tenant_id)
+    dispatch = make_dispatch(db, tenant_id, message)
     result = run_tool_loop(messages, TOOL_SCHEMAS, dispatch, complete, max_steps=max_steps)
     return assemble(result, model=model, query=message)

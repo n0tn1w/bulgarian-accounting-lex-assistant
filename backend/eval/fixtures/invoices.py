@@ -18,6 +18,7 @@ import uuid
 from decimal import Decimal
 
 from app.domain.models import Invoice, LineItem, Party, TaxLine
+from app.tools.ingest.company import tag_company
 
 EVAL_TENANT_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000001")
 
@@ -135,4 +136,7 @@ def _invoice(row: tuple) -> Invoice:
 
 
 def build_fixture_invoices() -> list[Invoice]:
-    return [_invoice(r) for r in _ROWS]
+    # Route every fixture through tag_company, exactly as real ingestion does
+    # (see tools/ingest/*: each path ends with tag_company before storage), so the
+    # seeded rows carry company_key/company_name and match the production structure.
+    return [tag_company(_invoice(r)) for r in _ROWS]

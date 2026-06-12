@@ -20,6 +20,7 @@ from app.api.routes import auth, companies, compare, documents, rag, validate, w
 from app.api.schemas import HealthResponse
 from app.core import get_settings
 from app.db import init_db
+from app.rag.llm import llm_status
 from app.tools.ingest import ocr_status
 
 settings = get_settings()
@@ -73,4 +74,4 @@ app.include_router(rag.router)
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", version=__version__, ocr=ocr_status())
+    return HealthResponse(status="ok", version=__version__, ocr=ocr_status(), llm=llm_status())
